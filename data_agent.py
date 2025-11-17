@@ -209,13 +209,13 @@ class DataAgent:
                 week=week
             )
         elif self.sport_type == "basketball":
-            # --- START FIX ---
+            # --- MODIFICATION START ---
             return self._fetch_college_data(
-                path="/games",  # <-- The path is just /games, not /basketball/games
+                path="/games",  # <-- THE FIX IS HERE
                 year=year or season, 
                 week=week
             )
-            # --- END FIX ---
+            # --- MODIFICATION END ---
         else: # football
             return self._fetch_football_fixtures(league_id, season, from_date, to_date)
         # --- END MODIFICATION ---

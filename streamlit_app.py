@@ -349,19 +349,20 @@ with st.sidebar:
                         # First, let's test the raw API response
                         if st.session_state.data_agent:
                             import requests
-                            import json # <-- Import json
+                            import json 
                             
+                            # Dynamically set test path
                             if st.session_state.sport_type == "college_football":
                                 test_path = "/games"
                             else: # basketball
-                                test_path = "/basketball/games"
+                                test_path = "/games" # <-- THE FIX IS HERE
                                 
                             test_url = f"{st.session_state.data_agent.base_url}{test_path}"
                             test_params = {'year': year, 'week': 1}  # Just week 1 for testing
                             
                             with st.expander("🔍 API Test (Week 1 sample)"):
                                 try:
-                                    st.write(f"Testing URL: {test_url}")
+                                    st.write(f"Testing URL: {test_url}") # Will now show the correct URL
                                     test_response = requests.get(
                                         test_url, 
                                         headers=st.session_state.data_agent.headers, 
