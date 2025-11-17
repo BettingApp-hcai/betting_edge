@@ -30,10 +30,10 @@ class DataAgent:
         self.api_key = api_key if api_key else default_keys.get(sport_type)
         
         if sport_type == "football":
-            self.base_url = "https://v3.football.api-football.com"
+            self.base_url = "https://v3.football.api-sports.io"
             self.headers = {
                 'x-rapidapi-key': self.api_key,
-                'x-rapidapi-host': 'v3.football.api-football.com'
+                'x-rapidapi-host': 'v3.football.api-sports.io'
             }
         else:  # college_football
             self.base_url = "https://api.sportsdata.io/v3/cfb"
@@ -199,12 +199,28 @@ class DataAgent:
             params['to'] = to_date
         
         try:
+            print(f"Fetching from: {endpoint}")
+            print(f"Params: {params}")
+            print(f"Headers: {self.headers}")
+            
             response = requests.get(endpoint, headers=self.headers, params=params)
+            print(f"Response status: {response.status_code}")
+            
             response.raise_for_status()
             data = response.json()
-            return data['response']
+            
+            print(f"API Response keys: {data.keys()}")
+            print(f"Results count: {data.get('results', 0)}")
+            
+            if 'errors' in data and data['errors']:
+                print(f"API Errors: {data['errors']}")
+                return []
+            
+            return data.get('response', [])
         except requests.exceptions.RequestException as e:
             print(f"Error fetching matches: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response text: {e.response.text}")
             return []
     
     def fetch_stats(self, match_id: int) -> Optional[Dict]:
