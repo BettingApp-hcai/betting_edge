@@ -370,10 +370,10 @@ with tab2:
     if os.path.exists("betting_edge.db"):
         matches_df = fetch_matches_from_db()
         
-        if not matches_df.empty:
+        if not matches_df.empty and len(matches_df) > 0:
             # Create match selector
             match_options = matches_df.apply(
-                lambda x: f"{x['home_team_name']} vs {x['away_team_name']} ({x['match_date'][:10]})",
+                lambda x: f"{x['home_team_name']} vs {x['away_team_name']} ({x['match_date'][:10]})" if pd.notna(x['match_date']) else f"{x['home_team_name']} vs {x['away_team_name']}",
                 axis=1
             ).tolist()
             
@@ -425,14 +425,14 @@ with tab2:
                     for idx, row in stats_df.iterrows():
                         with col1 if idx == 0 else col2:
                             st.markdown(f"**{row['team_name']}**")
-                            st.metric("Shots on Goal", row['shots_on_goal'])
-                            st.metric("Possession %", f"{row['ball_possession']}%")
-                            st.metric("Pass Accuracy", f"{row['passes_accurate']}/{row['total_passes']}")
-                            st.metric("Corners", row['corner_kicks'])
+                            st.metric("Shots on Goal", int(row['shots_on_goal']) if pd.notna(row['shots_on_goal']) else 0)
+                            st.metric("Possession %", f"{int(row['ball_possession']) if pd.notna(row['ball_possession']) else 0}%")
+                            st.metric("Pass Accuracy", f"{int(row['passes_accurate']) if pd.notna(row['passes_accurate']) else 0}/{int(row['total_passes']) if pd.notna(row['total_passes']) else 0}")
+                            st.metric("Corners", int(row['corner_kicks']) if pd.notna(row['corner_kicks']) else 0)
                 else:
                     st.info("No statistics available for this match")
         else:
-            st.info("No matches available")
+            st.info("No matches available. Use the sidebar to fetch data.")
     else:
         st.info("Database not initialized")
 
@@ -505,7 +505,7 @@ with tab4:
     if os.path.exists("betting_edge.db"):
         matches_df = fetch_matches_from_db()
         
-        if not matches_df.empty:
+        if not matches_df.empty and len(matches_df) > 0:
             # Filter matches with odds
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -513,9 +513,12 @@ with tab4:
             matches_with_odds = [row[0] for row in cursor.fetchall()]
             conn.close()
             
-            matches_with_odds_df = matches_df[matches_df['match_id'].isin(matches_with_odds)]
+            if matches_with_odds:
+                matches_with_odds_df = matches_df[matches_df['match_id'].isin(matches_with_odds)]
+            else:
+                matches_with_odds_df = pd.DataFrame()
             
-            if not matches_with_odds_df.empty:
+            if not matches_with_odds_df.empty and len(matches_with_odds_df) > 0:
                 match_options = matches_with_odds_df.apply(
                     lambda x: f"{x['home_team_name']} vs {x['away_team_name']}",
                     axis=1
