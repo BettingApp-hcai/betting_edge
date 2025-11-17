@@ -263,7 +263,7 @@ with st.sidebar:
             
             season = st.number_input(
                 "Season",
-                min_value=2020,
+                min_value=2000,
                 max_value=2025,
                 value=2023,
                 help="Use the year the season starts"
