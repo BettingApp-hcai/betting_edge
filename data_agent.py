@@ -27,7 +27,7 @@ class DataAgent:
         api_keys = {
             "football": os.getenv("API_KEY_FOOTBALL"),
             "college_football": os.getenv("API_KEY_CFB"),
-            "basketball": os.getenv("API_KEY_BASKETBALL")  # <-- MODIFICATION
+            "basketball": os.getenv("API_KEY_BASKETBALL") # Reads the new key
         }
         
         self.sport_type = sport_type
@@ -36,6 +36,8 @@ class DataAgent:
         if not self.api_key:
             raise ValueError(f"API key for {sport_type} not found. Check your .env file.")
         
+        # --- START FIX ---
+        # Split the logic: each sport gets its own base_url
         if sport_type == "football":
             self.base_url = "https://v3.football.api-sports.io"
             self.headers = {
@@ -43,20 +45,20 @@ class DataAgent:
                 'x-rapidapi-host': 'v3.football.api-sports.io'
             }
         
-        #--- MODIFICATION: Split college sports ---
         elif sport_type == "college_football":
-            self.base_url = "https://api.collegefootballdata.com" # This is correct for CFB
+            self.base_url = "https://api.collegefootballdata.com" # Football URL
             self.headers = {
                 'Authorization': f'Bearer {self.api_key}',
                 'Accept': 'application/json'
             }
+            
         elif sport_type == "basketball":
-            self.base_url = "https://api.collegebasketballdata.com" # <-- This is the NEW, correct URL
+            self.base_url = "https://api.collegebasketballdata.com" # <-- CORRECT Basketball URL
             self.headers = {
                 'Authorization': f'Bearer {self.api_key}',
                 'Accept': 'application/json'
             }
-        # --- END MODIFICATION ---
+        # --- END FIX ---
             
         else:
              raise ValueError(f"Unsupported sport_type: {sport_type}")
@@ -207,13 +209,13 @@ class DataAgent:
                 week=week
             )
         elif self.sport_type == "basketball":
-            # --- MODIFICATION: Fix the path ---
+            # --- START FIX ---
             return self._fetch_college_data(
-                path="/games",  # <-- Change from "/basketball/games" to "/games"
+                path="/games",  # <-- The path is just /games, not /basketball/games
                 year=year or season, 
                 week=week
             )
-            # --- END MODIFICATION ---
+            # --- END FIX ---
         else: # football
             return self._fetch_football_fixtures(league_id, season, from_date, to_date)
         # --- END MODIFICATION ---
