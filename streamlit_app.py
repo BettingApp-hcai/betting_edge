@@ -193,27 +193,56 @@ with st.sidebar:
             "Season",
             min_value=2020,
             max_value=2025,
-            value=2024
+            value=2024,
+            help="For most leagues, use the year the season starts (e.g., 2024 for 2024-25 season)"
         )
+        
+        # Date range for better filtering
+        col_date1, col_date2 = st.columns(2)
+        with col_date1:
+            from_date = st.date_input(
+                "From Date",
+                value=datetime.now() - timedelta(days=30),
+                help="Fetch matches from this date"
+            )
+        with col_date2:
+            to_date = st.date_input(
+                "To Date", 
+                value=datetime.now() + timedelta(days=7),
+                help="Fetch matches until this date"
+            )
         
         if st.button("📥 Fetch Matches"):
             with st.spinner(f"Fetching {selected_league} matches..."):
                 try:
                     league_id = league_options[selected_league]
                     matches = st.session_state.data_agent.fetch_matches(
-                        league_id, season
+                        league_id, 
+                        season,
+                        from_date=from_date.strftime('%Y-%m-%d'),
+                        to_date=to_date.strftime('%Y-%m-%d')
                     )
                     
                     if matches:
-                        for match in matches[:10]:  # First 10 matches
-                            st.session_state.data_agent.store_match(match)
+                        st.info(f"Found {len(matches)} matches. Storing in database...")
+                        stored_count = 0
+                        for match in matches[:50]:  # Limit to 50 to avoid rate limits
+                            try:
+                                st.session_state.data_agent.store_match(match)
+                                stored_count += 1
+                            except Exception as e:
+                                st.warning(f"Error storing match: {e}")
+                                continue
                         
-                        st.success(f"✅ Fetched {len(matches[:10])} matches!")
+                        st.success(f"✅ Stored {stored_count} matches!")
+                        st.balloons()
                         st.rerun()
                     else:
-                        st.warning("No matches found")
+                        st.warning(f"No matches found for {selected_league} season {season}")
+                        st.info("Try adjusting the date range or season year")
                 except Exception as e:
                     st.error(f"Error: {e}")
+                    st.info("This might be an API rate limit or invalid season. Try again in a moment.")
 
 # Main Content Area
 tab1, tab2, tab3, tab4 = st.tabs(["🏠 Dashboard", "⚽ Matches", "📊 Statistics", "💰 Odds"])
