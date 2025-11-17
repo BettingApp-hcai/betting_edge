@@ -217,34 +217,39 @@ class DataAgent:
             
             print(f"CFB Games found: {len(data) if isinstance(data, list) else 0}")
             
+            # Debug: print first game structure
+            if data and len(data) > 0:
+                print("First game structure:")
+                print(json.dumps(data[0], indent=2))
+            
             # Convert CFB format to our standard format
             converted_games = []
             for game in data:
                 converted_game = {
                     'fixture': {
-                        'id': game.get('id'),
-                        'date': game.get('start_date'),
-                        'status': {'long': game.get('status', 'Unknown')},
-                        'venue': {'name': game.get('venue', 'Unknown')}
+                        'id': game.get('id', 0),
+                        'date': game.get('start_date', game.get('startDate', '')),
+                        'status': {'long': game.get('status', game.get('completed', False) and 'completed' or 'scheduled')},
+                        'venue': {'name': game.get('venue', 'TBD')}
                     },
                     'league': {
                         'id': 0,  # CFB doesn't have league IDs
                         'name': 'College Football',
-                        'season': game.get('season')
+                        'season': game.get('season', year)
                     },
                     'teams': {
                         'home': {
                             'id': game.get('home_id', 0),
-                            'name': game.get('home_team', 'Unknown')
+                            'name': game.get('home_team', 'TBD')
                         },
                         'away': {
                             'id': game.get('away_id', 0),
-                            'name': game.get('away_team', 'Unknown')
+                            'name': game.get('away_team', 'TBD')
                         }
                     },
                     'goals': {
-                        'home': game.get('home_points'),
-                        'away': game.get('away_points')
+                        'home': game.get('home_points', game.get('homePoints')),
+                        'away': game.get('away_points', game.get('awayPoints'))
                     }
                 }
                 converted_games.append(converted_game)
