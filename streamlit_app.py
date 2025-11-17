@@ -62,16 +62,26 @@ def get_db_connection():
     """Get database connection."""
     return sqlite3.connect("betting_edge.db")
 
-def fetch_matches_from_db():
-    """Fetch all matches from database."""
+def fetch_matches_from_db(include_past=True, include_future=True, limit=100):
+    """Fetch matches from database with filtering options."""
     conn = get_db_connection()
-    query = """
+    
+    conditions = []
+    if not include_past:
+        conditions.append("match_date >= datetime('now')")
+    if not include_future:
+        conditions.append("match_date < datetime('now')")
+    
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    
+    query = f"""
         SELECT match_id, league_name, match_date, 
                home_team_name, away_team_name, 
                home_score, away_score, status
         FROM matches
+        {where_clause}
         ORDER BY match_date DESC
-        LIMIT 100
+        LIMIT {limit}
     """
     df = pd.read_sql_query(query, conn)
     conn.close()
@@ -338,9 +348,27 @@ with tab1:
         
         # Recent matches table
         st.subheader("📅 Latest Matches")
-        matches_df = fetch_matches_from_db()
+        
+        # Add filter options
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            filter_past = st.checkbox("Past", value=True, key="dash_past")
+        with col_f2:
+            filter_future = st.checkbox("Future", value=True, key="dash_future")
+        with col_f3:
+            show_count = st.slider("Show", 10, 100, 20)
+        
+        matches_df = fetch_matches_from_db(
+            include_past=filter_past, 
+            include_future=filter_future,
+            limit=show_count
+        )
         
         if not matches_df.empty:
+            # Debug: Show raw data sample
+            with st.expander("🔍 Debug: View Raw Data Sample"):
+                st.dataframe(matches_df.head(5), use_container_width=True)
+            
             # Format the display
             matches_df['match_date'] = pd.to_datetime(matches_df['match_date']).dt.strftime('%Y-%m-%d %H:%M')
             matches_df['Score'] = matches_df.apply(
@@ -367,13 +395,22 @@ with tab1:
 with tab2:
     st.header("Match Details")
     
+    # Add filters
+    col1, col2 = st.columns(2)
+    with col1:
+        show_past = st.checkbox("Show Past Matches", value=True)
+    with col2:
+        show_future = st.checkbox("Show Future Matches", value=True)
+    
     if os.path.exists("betting_edge.db"):
-        matches_df = fetch_matches_from_db()
+        matches_df = fetch_matches_from_db(include_past=show_past, include_future=show_future)
         
         if not matches_df.empty and len(matches_df) > 0:
+            st.info(f"Showing {len(matches_df)} matches")
+            
             # Create match selector
             match_options = matches_df.apply(
-                lambda x: f"{x['home_team_name']} vs {x['away_team_name']} ({x['match_date'][:10]})" if pd.notna(x['match_date']) else f"{x['home_team_name']} vs {x['away_team_name']}",
+                lambda x: f"{x['home_team_name']} vs {x['away_team_name']} ({x['match_date'][:10] if pd.notna(x['match_date']) else 'TBD'}) - {x['status']}",
                 axis=1
             ).tolist()
             
