@@ -1,17 +1,18 @@
+# /data_agent.py
 import requests
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import json
 import os
-from dotenv import load_dotenv  # <-- Import this
+from dotenv import load_dotenv
 
-load_dotenv()  # <-- Load the .env file
+load_dotenv()
 
 class DataAgent:
     """
-    Data Agent for fetching and managing sports data from API-Football.
-    Handles live/historical data and stores it in SQLite database.
+    Data Agent for fetching and managing sports data.
+    Handles football, college_football, and basketball.
     """
     
     def __init__(self, sport_type: str = "football", db_path: str = "betting_edge.db"):
@@ -19,13 +20,14 @@ class DataAgent:
         Initialize the Data Agent.
         
         Args:
-            sport_type: Type of sport - "football" or "college_football"
+            sport_type: "football", "college_football", or "basketball"
             db_path: Path to SQLite database
         """
         # Load API keys from environment variables
         api_keys = {
             "football": os.getenv("API_KEY_FOOTBALL"),
-            "college_football": os.getenv("API_KEY_CFB")
+            "college_football": os.getenv("API_KEY_CFB"),
+            "basketball": os.getenv("API_KEY_BASKETBALL")  # <-- MODIFICATION
         }
         
         self.sport_type = sport_type
@@ -40,16 +42,23 @@ class DataAgent:
                 'x-rapidapi-key': self.api_key,
                 'x-rapidapi-host': 'v3.football.api-sports.io'
             }
-        else:  # college_football
+        
+        # --- MODIFICATION: Grouped college sports ---
+        elif sport_type in ("college_football", "basketball"):
             self.base_url = "https://apinext.collegefootballdata.com"
             self.headers = {
                 'Authorization': f'Bearer {self.api_key}',
                 'Accept': 'application/json'
             }
-        
+        # --- END MODIFICATION ---
+            
+        else:
+             raise ValueError(f"Unsupported sport_type: {sport_type}")
+
         self.db_path = db_path
         self._init_database()
     
+    # ... (_init_database function is unchanged) ...
     def _init_database(self):
         """Initialize SQLite database with required schemas."""
         conn = sqlite3.connect(self.db_path)
@@ -152,17 +161,16 @@ class DataAgent:
         conn.commit()
         conn.close()
         print(f"Database initialized at {self.db_path}")
-    
+
+    # ... (fetch_odds function is unchanged) ...
     def fetch_odds(self, match_id: int) -> Optional[Dict]:
         """
-        Fetch betting odds for a specific match.
-        
-        Args:
-            match_id: API-Football match ID
-            
-        Returns:
-            Dictionary containing odds data or None if request fails
+        Fetch betting odds for a specific match. (Football only)
         """
+        if self.sport_type != "football":
+            print("Odds fetching is only supported for football.")
+            return None
+            
         endpoint = f"{self.base_url}/odds"
         params = {'fixture': match_id}
         
@@ -177,41 +185,43 @@ class DataAgent:
         except requests.exceptions.RequestException as e:
             print(f"Error fetching odds: {e}")
             return None
-    
+
     def fetch_matches(self, league_id: int = None, season: int = None, 
-                     from_date: Optional[str] = None,
-                     to_date: Optional[str] = None,
-                     year: Optional[int] = None,
-                     week: Optional[int] = None) -> List[Dict]:
+                      from_date: Optional[str] = None,
+                      to_date: Optional[str] = None,
+                      year: Optional[int] = None,
+                      week: Optional[int] = None) -> List[Dict]:
         """
-        Fetch matches for a specific league and season.
-        
-        Args:
-            league_id: League ID (e.g., 39 for Premier League) - for football only
-            season: Season year (e.g., 2024) - for football only
-            from_date: Start date (YYYY-MM-DD) - for football only
-            to_date: End date (YYYY-MM-DD) - for football only
-            year: Year for college football (e.g., 2024)
-            week: Week number for college football (optional)
-            
-        Returns:
-            List of match dictionaries
+        Fetch matches based on the agent's sport_type.
         """
+        # --- MODIFICATION: Reroute based on sport_type ---
         if self.sport_type == "college_football":
-            return self._fetch_cfb_games(year or season, week)
-        else:
+            return self._fetch_college_data(
+                path="/games", 
+                year=year or season, 
+                week=week
+            )
+        elif self.sport_type == "basketball":
+            return self._fetch_college_data(
+                path="/basketball/games",  # Use the basketball endpoint
+                year=year or season, 
+                week=week
+            )
+        else: # football
             return self._fetch_football_fixtures(league_id, season, from_date, to_date)
-    
-    def _fetch_cfb_games(self, year: int, week: Optional[int] = None) -> List[Dict]:
-        """Fetch college football games."""
-        endpoint = f"{self.base_url}/games"
+        # --- END MODIFICATION ---
+
+    # --- MODIFICATION: New generic function ---
+    def _fetch_college_data(self, path: str, year: int, week: Optional[int] = None) -> List[Dict]:
+        """Generic fetcher for college sports (CFB, CBB)."""
+        endpoint = f"{self.base_url}{path}" # Use the path argument
         params = {'year': year}
         
         if week:
             params['week'] = week
         
         try:
-            print(f"Fetching CFB from: {endpoint}")
+            print(f"Fetching College Data from: {endpoint}")
             print(f"Params: {params}")
             
             response = requests.get(endpoint, headers=self.headers, params=params)
@@ -220,14 +230,14 @@ class DataAgent:
             response.raise_for_status()
             data = response.json()
             
-            print(f"CFB Games found: {len(data) if isinstance(data, list) else 0}")
+            print(f"Games found: {len(data) if isinstance(data, list) else 0}")
             
             # Debug: print first game structure
             if data and len(data) > 0:
                 print("First game structure:")
                 print(json.dumps(data[0], indent=2))
             
-            # Convert CFB format to our standard format
+            # Convert CFB/CBB format to our standard format
             converted_games = []
             for game in data:
                 converted_game = {
@@ -239,7 +249,7 @@ class DataAgent:
                     },
                     'league': {
                         'id': 0,
-                        'name': 'College Football',
+                        'name': 'College Football' if self.sport_type == 'college_football' else 'College Basketball',
                         'season': game.get('season', year)
                     },
                     'teams': {
@@ -262,14 +272,15 @@ class DataAgent:
             return converted_games
             
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching CFB games: {e}")
+            print(f"Error fetching college games: {e}")
             if hasattr(e, 'response') and e.response is not None:
                 print(f"Response text: {e.response.text}")
             return []
+    # --- END MODIFICATION ---
     
     def _fetch_football_fixtures(self, league_id: int, season: int, 
-                                 from_date: Optional[str] = None,
-                                 to_date: Optional[str] = None) -> List[Dict]:
+                                from_date: Optional[str] = None,
+                                to_date: Optional[str] = None) -> List[Dict]:
         """Fetch soccer/football fixtures."""
         endpoint = f"{self.base_url}/fixtures"
         params = {
@@ -306,17 +317,18 @@ class DataAgent:
             if hasattr(e, 'response') and e.response is not None:
                 print(f"Response text: {e.response.text}")
             return []
+
+    # ... (fetch_stats, fetch_team_stats, store_match, store_stats, store_odds, 
+    #      get_match_data, get_recent_matches, refresh_data_for_match are all unchanged) ...
     
     def fetch_stats(self, match_id: int) -> Optional[Dict]:
         """
-        Fetch detailed statistics for a specific match.
-        
-        Args:
-            match_id: API-Football match ID
-            
-        Returns:
-            Dictionary containing match statistics or None
+        Fetch detailed statistics for a specific match. (Football only)
         """
+        if self.sport_type != "football":
+            print("Stats fetching is only supported for football.")
+            return None
+            
         endpoint = f"{self.base_url}/fixtures/statistics"
         params = {'fixture': match_id}
         
@@ -331,16 +343,12 @@ class DataAgent:
     
     def fetch_team_stats(self, team_id: int, league_id: int, season: int) -> Optional[Dict]:
         """
-        Fetch team statistics for a season.
-        
-        Args:
-            team_id: Team ID
-            league_id: League ID
-            season: Season year
-            
-        Returns:
-            Dictionary containing team statistics
+        Fetch team statistics for a season. (Football only)
         """
+        if self.sport_type != "football":
+            print("Team stats fetching is only supported for football.")
+            return None
+            
         endpoint = f"{self.base_url}/teams/statistics"
         params = {
             'team': team_id,
@@ -359,7 +367,7 @@ class DataAgent:
     
     def store_match(self, match_data: Dict):
         """Store match data in SQLite database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
         
         try:
@@ -405,7 +413,7 @@ class DataAgent:
     
     def store_stats(self, match_id: int, stats_data: List[Dict]):
         """Store match statistics in SQLite database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
         
         for team_stats in stats_data:
@@ -433,13 +441,13 @@ class DataAgent:
                 stats.get('Fouls', 0),
                 stats.get('Corner Kicks', 0),
                 stats.get('Offsides', 0),
-                stats.get('Ball Possession', '0%').rstrip('%'),
+                str(stats.get('Ball Possession', '0%')).rstrip('%'),
                 stats.get('Yellow Cards', 0),
                 stats.get('Red Cards', 0),
                 stats.get('Goalkeeper Saves', 0),
                 stats.get('Total passes', 0),
                 stats.get('Passes accurate', 0),
-                stats.get('Passes %', '0%').rstrip('%'),
+                str(stats.get('Passes %', '0%')).rstrip('%'),
                 datetime.now().isoformat()
             ))
         
@@ -448,7 +456,7 @@ class DataAgent:
     
     def store_odds(self, match_id: int, odds_data: Dict):
         """Store betting odds in SQLite database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         cursor = conn.cursor()
         
         for bookmaker in odds_data['bookmakers']:
@@ -474,7 +482,7 @@ class DataAgent:
     
     def get_match_data(self, match_id: int) -> Optional[Dict]:
         """Retrieve match data from database."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
@@ -488,14 +496,14 @@ class DataAgent:
     
     def get_recent_matches(self, team_id: int, limit: int = 5) -> List[Dict]:
         """Get recent matches for a team."""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
         cursor.execute('''
             SELECT * FROM matches 
             WHERE (home_team_id = ? OR away_team_id = ?)
-            AND status = 'Match Finished'
+            AND status LIKE 'Match Finished' OR status LIKE 'completed'
             ORDER BY match_date DESC
             LIMIT ?
         ''', (team_id, team_id, limit))
@@ -512,18 +520,22 @@ class DataAgent:
         """
         print(f"Refreshing data for match {match_id}...")
         
-        # Fetch and store odds
-        odds_data = self.fetch_odds(match_id)
-        if odds_data:
-            self.store_odds(match_id, odds_data)
-            print(f"✓ Odds stored")
-        
-        # Fetch and store stats
-        stats_data = self.fetch_stats(match_id)
-        if stats_data:
-            self.store_stats(match_id, stats_data)
-            print(f"✓ Stats stored")
-        
+        # Note: Stats and Odds fetching are only supported for 'football'
+        if self.sport_type == 'football':
+            # Fetch and store odds
+            odds_data = self.fetch_odds(match_id)
+            if odds_data:
+                self.store_odds(match_id, odds_data)
+                print(f"✓ Odds stored")
+            
+            # Fetch and store stats
+            stats_data = self.fetch_stats(match_id)
+            if stats_data:
+                self.store_stats(match_id, stats_data)
+                print(f"✓ Stats stored")
+        else:
+            print(f"Skipping odds/stats refresh (not supported for {self.sport_type})")
+
         print(f"Data refresh complete for match {match_id}")
 
 
@@ -539,6 +551,11 @@ if __name__ == "__main__":
     cfb_agent = DataAgent(sport_type="college_football")
     print("✓ College Football agent initialized with environment API key")
     
+    # --- MODIFICATION: Add example for basketball ---
+    cbb_agent = DataAgent(sport_type="basketball")
+    print("✓ College Basketball agent initialized with environment API key")
+    
     print("\n🎯 Ready to fetch data! API keys configured from .env")
-    print("    - API-Football: ****" + football_agent.api_key[-8:])
-    print("    - College Football: ****" + cfb_agent.api_key[-8:])
+    print("    - API-Football: ****" + (football_agent.api_key[-8:] if football_agent.api_key else "N/A"))
+    print("    - College Football: ****" + (cfb_agent.api_key[-8:] if cfb_agent.api_key else "N/A"))
+    print("    - College Basketball: ****" + (cbb_agent.api_key[-8:] if cbb_agent.api_key else "N/A"))
