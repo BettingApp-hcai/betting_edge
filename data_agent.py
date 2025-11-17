@@ -228,28 +228,28 @@ class DataAgent:
                 converted_game = {
                     'fixture': {
                         'id': game.get('id', 0),
-                        'date': game.get('start_date', game.get('startDate', '')),
-                        'status': {'long': game.get('status', game.get('completed', False) and 'completed' or 'scheduled')},
-                        'venue': {'name': game.get('venue', 'TBD')}
+                        'date': game.get('startDate', ''),
+                        'status': {'long': 'completed' if game.get('completed') else 'scheduled'},
+                        'venue': {'name': game.get('venue') or 'TBD'}
                     },
                     'league': {
-                        'id': 0,  # CFB doesn't have league IDs
+                        'id': 0,
                         'name': 'College Football',
                         'season': game.get('season', year)
                     },
                     'teams': {
                         'home': {
-                            'id': game.get('home_id', 0),
-                            'name': game.get('home_team', 'TBD')
+                            'id': game.get('homeId', 0),
+                            'name': game.get('homeTeam', 'TBD')
                         },
                         'away': {
-                            'id': game.get('away_id', 0),
-                            'name': game.get('away_team', 'TBD')
+                            'id': game.get('awayId', 0),
+                            'name': game.get('awayTeam', 'TBD')
                         }
                     },
                     'goals': {
-                        'home': game.get('home_points', game.get('homePoints')),
-                        'away': game.get('away_points', game.get('awayPoints'))
+                        'home': game.get('homePoints'),
+                        'away': game.get('awayPoints')
                     }
                 }
                 converted_games.append(converted_game)
@@ -357,37 +357,46 @@ class DataAgent:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        fixture = match_data['fixture']
-        league = match_data['league']
-        teams = match_data['teams']
-        goals = match_data['goals']
-        
-        cursor.execute('''
-            INSERT OR REPLACE INTO matches 
-            (match_id, sport_type, league_id, league_name, season, match_date,
-             home_team_id, home_team_name, away_team_id, away_team_name,
-             home_score, away_score, status, venue, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            fixture['id'],
-            self.sport_type,
-            league['id'],
-            league['name'],
-            league['season'],
-            fixture['date'],
-            teams['home']['id'],
-            teams['home']['name'],
-            teams['away']['id'],
-            teams['away']['name'],
-            goals['home'],
-            goals['away'],
-            fixture['status']['long'],
-            fixture['venue']['name'],
-            datetime.now().isoformat()
-        ))
-        
-        conn.commit()
-        conn.close()
+        try:
+            fixture = match_data['fixture']
+            league = match_data['league']
+            teams = match_data['teams']
+            goals = match_data['goals']
+            
+            # Debug logging
+            print(f"Storing match: {teams['home']['name']} vs {teams['away']['name']}")
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO matches 
+                (match_id, sport_type, league_id, league_name, season, match_date,
+                 home_team_id, home_team_name, away_team_id, away_team_name,
+                 home_score, away_score, status, venue, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                fixture['id'],
+                self.sport_type,
+                league['id'],
+                league['name'],
+                league['season'],
+                fixture['date'],
+                teams['home']['id'],
+                teams['home']['name'],
+                teams['away']['id'],
+                teams['away']['name'],
+                goals['home'],
+                goals['away'],
+                fixture['status']['long'],
+                fixture['venue']['name'],
+                datetime.now().isoformat()
+            ))
+            
+            conn.commit()
+        except Exception as e:
+            print(f"Error storing match: {e}")
+            print(f"Match data: {json.dumps(match_data, indent=2)}")
+            conn.rollback()
+        finally:
+            conn.close()
     
     def store_stats(self, match_id: int, stats_data: List[Dict]):
         """Store match statistics in SQLite database."""

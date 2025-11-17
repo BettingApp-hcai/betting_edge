@@ -205,8 +205,8 @@ with st.sidebar:
                 "Season",
                 min_value=2020,
                 max_value=2025,
-                value=2024,
-                help="For most leagues, use the year the season starts (e.g., 2024 for 2024-25 season)"
+                value=2023,
+                help="Free plan supports 2021-2023. For most leagues, use the year the season starts"
             )
             
             # Date range for better filtering
@@ -276,6 +276,27 @@ with st.sidebar:
             if st.button("📥 Fetch Games"):
                 with st.spinner(f"Fetching CFB games for {year}..."):
                     try:
+                        # First, let's test the raw API response
+                        if st.session_state.data_agent:
+                            import requests
+                            test_url = f"{st.session_state.data_agent.base_url}/games"
+                            test_params = {'year': year, 'week': 1}  # Just week 1 for testing
+                            
+                            with st.expander("🔍 API Test (Week 1 sample)"):
+                                test_response = requests.get(
+                                    test_url, 
+                                    headers=st.session_state.data_agent.headers, 
+                                    params=test_params
+                                )
+                                if test_response.status_code == 200:
+                                    test_data = test_response.json()
+                                    if test_data and len(test_data) > 0:
+                                        st.json(test_data[0])  # Show first game
+                                    else:
+                                        st.warning("No data returned")
+                                else:
+                                    st.error(f"API Error: {test_response.status_code}")
+                        
                         games = st.session_state.data_agent.fetch_matches(
                             year=year,
                             week=week if week > 0 else None
@@ -410,7 +431,7 @@ with tab2:
             
             # Create match selector
             match_options = matches_df.apply(
-                lambda x: f"{x['home_team_name']} vs {x['away_team_name']} ({x['match_date'][:10] if pd.notna(x['match_date']) else 'TBD'}) - {x['status']}",
+                lambda x: f"{x['home_team_name']} vs {x['away_team_name']} ({x['match_date'][:10] if x['match_date'] and len(str(x['match_date'])) >= 10 else 'TBD'}) - {x['status']}",
                 axis=1
             ).tolist()
             
