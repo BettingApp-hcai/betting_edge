@@ -4,6 +4,9 @@ import pandas as pd
 from datetime import datetime, timedelta
 import os
 from data_agent import DataAgent
+from dotenv import load_dotenv  # <-- Import this
+
+load_dotenv()  # <-- Load the .env file
 
 # Page configuration
 st.set_page_config(
@@ -35,11 +38,11 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state
+# Initialize session state from environment variables
 if 'api_key_football' not in st.session_state:
-    st.session_state.api_key_football = "29b91fd12011657f47a0b7da8c65a89a"
+    st.session_state.api_key_football = os.getenv("API_KEY_FOOTBALL", "KEY_NOT_FOUND") # <-- Read from os.getenv
 if 'api_key_cfb' not in st.session_state:
-    st.session_state.api_key_cfb = "Cm65xEJGHrZaC4gxJE5d1ZdcJYEC+Zw1Yo8ZFjs4h7HUPe6XazxcXntbTLMdjssF"
+    st.session_state.api_key_cfb = os.getenv("API_KEY_CFB", "KEY_NOT_FOUND") # <-- Read from os.getenv
 if 'data_agent' not in st.session_state:
     st.session_state.data_agent = None
 if 'sport_type' not in st.session_state:

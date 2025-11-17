@@ -4,6 +4,9 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import json
 import os
+from dotenv import load_dotenv  # <-- Import this
+
+load_dotenv()  # <-- Load the .env file
 
 class DataAgent:
     """
@@ -11,23 +14,25 @@ class DataAgent:
     Handles live/historical data and stores it in SQLite database.
     """
     
-    def __init__(self, api_key: str = None, sport_type: str = "football", db_path: str = "betting_edge.db"):
+    def __init__(self, sport_type: str = "football", db_path: str = "betting_edge.db"):
         """
         Initialize the Data Agent.
         
         Args:
-            api_key: API key (API-Football or API-Sports)
             sport_type: Type of sport - "football" or "college_football"
             db_path: Path to SQLite database
         """
-        # Default API keys
-        default_keys = {
-            "football": "29b91fd12011657f47a0b7da8c65a89a",
-            "college_football": "Cm65xEJGHrZaC4gxJE5d1ZdcJYEC+Zw1Yo8ZFjs4h7HUPe6XazxcXntbTLMdjssF"
+        # Load API keys from environment variables
+        api_keys = {
+            "football": os.getenv("API_KEY_FOOTBALL"),
+            "college_football": os.getenv("API_KEY_CFB")
         }
         
         self.sport_type = sport_type
-        self.api_key = api_key if api_key else default_keys.get(sport_type)
+        self.api_key = api_keys.get(sport_type) # Get the key for the chosen sport
+        
+        if not self.api_key:
+            raise ValueError(f"API key for {sport_type} not found. Check your .env file.")
         
         if sport_type == "football":
             self.base_url = "https://v3.football.api-sports.io"
@@ -524,25 +529,16 @@ class DataAgent:
 
 # Example usage
 if __name__ == "__main__":
-    # Initialize agent - uses default keys
+    # Initialize agent - now uses .env keys
     
     # For API-Football (Soccer)
     football_agent = DataAgent(sport_type="football")
-    print("✓ Football agent initialized with default API key")
+    print("✓ Football agent initialized with environment API key")
     
     # For College Football
     cfb_agent = DataAgent(sport_type="college_football")
-    print("✓ College Football agent initialized with default API key")
+    print("✓ College Football agent initialized with environment API key")
     
-    # Example: Fetch and store Premier League matches
-    # league_id = 39  # Premier League
-    # season = 2024
-    # matches = football_agent.fetch_matches(league_id, season)
-    # 
-    # for match in matches[:5]:  # First 5 matches
-    #     football_agent.store_match(match)
-    #     football_agent.refresh_data_for_match(match['fixture']['id'])
-    
-    print("\n🎯 Ready to fetch data! API keys configured.")
-    print("   - API-Football: ****" + football_agent.api_key[-8:])
-    print("   - College Football: ****" + cfb_agent.api_key[-8:])
+    print("\n🎯 Ready to fetch data! API keys configured from .env")
+    print("    - API-Football: ****" + football_agent.api_key[-8:])
+    print("    - College Football: ****" + cfb_agent.api_key[-8:])

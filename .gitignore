@@ -1,0 +1,9 @@
+# Python
+*.pyc
+__pycache__/
+
+# Environment
+.env
+
+# Database
+*.db
