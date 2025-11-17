@@ -67,19 +67,26 @@ def get_db_connection():
 
 # In streamlit_app.py
 
-def fetch_matches_from_db(sport_type: str, include_past=True, include_future=True, limit=100):
+# In streamlit_app.py, UPDATE this function
+def fetch_matches_from_db(sport_type: str, league_name: Optional[str] = None, include_past=True, include_future=True, limit=100):
     """Fetch matches from database with filtering options."""
     conn = get_db_connection()
     
     # --- MODIFICATION START ---
-    params = [sport_type] # Start with sport_type as the first parameter
-    conditions = ["sport_type = ?"] # Start with the sport_type filter
+    params = [sport_type]
+    conditions = ["sport_type = ?"]
     
     if not include_past:
         conditions.append("match_date >= datetime('now')")
     if not include_future:
         conditions.append("match_date < datetime('now')")
     
+    # Add the new league filter logic
+    if league_name and league_name != "All Leagues":
+        conditions.append("league_name = ?")
+        params.append(league_name)
+    # --- MODIFICATION END ---
+        
     where_clause = f"WHERE {' AND '.join(conditions)}"
     
     query = f"""
@@ -93,9 +100,7 @@ def fetch_matches_from_db(sport_type: str, include_past=True, include_future=Tru
     """
     params.append(limit) # Add limit as the last parameter
     
-    df = pd.read_sql_query(query, conn, params=tuple(params)) # Pass params tuple
-    # --- MODIFICATION END ---
-    
+    df = pd.read_sql_query(query, conn, params=tuple(params))
     conn.close()
     return df
 
@@ -112,6 +117,22 @@ def fetch_match_stats(match_id: int):
     df = pd.read_sql_query(query, conn, params=(match_id,))
     conn.close()
     return df
+
+# Add this function in streamlit_app.py
+def get_unique_leagues(sport_type: str):
+    """Get all unique leagues for the selected sport_type from the DB."""
+    if not os.path.exists("betting_edge.db"):
+        return ["All Leagues"]
+    conn = get_db_connection()
+    query = "SELECT DISTINCT league_name FROM matches WHERE sport_type = ? ORDER BY league_name"
+    try:
+        df = pd.read_sql_query(query, conn, params=(sport_type,))
+        conn.close()
+        return ["All Leagues"] + df['league_name'].tolist()
+    except Exception as e:
+        print(f"Error getting unique leagues: {e}")
+        conn.close()
+        return ["All Leagues"]
 
 def fetch_odds(match_id: int):
     """Fetch odds for a specific match."""
@@ -382,17 +403,29 @@ with tab1:
         # Recent matches table
         st.subheader("📅 Latest Matches")
         
-        # Add filter options
-        col_f1, col_f2, col_f3 = st.columns(3)
+        # --- MODIFICATION START: Add league filter widget ---
+        leagues = get_unique_leagues(st.session_state.sport_type)
+        
+        col_f1, col_f2, col_f3, col_f4 = st.columns([2, 1, 1, 2])
         with col_f1:
-            filter_past = st.checkbox("Past", value=True, key="dash_past")
+            # Add the new league filter selectbox
+            selected_league_filter = st.selectbox(
+                "Filter by League", 
+                options=leagues, 
+                key="dash_league_filter"
+            )
         with col_f2:
-            filter_future = st.checkbox("Future", value=True, key="dash_future")
+            filter_past = st.checkbox("Past", value=True, key="dash_past")
         with col_f3:
+            filter_future = st.checkbox("Future", value=True, key="dash_future")
+        with col_f4:
             show_count = st.slider("Show", 10, 100, 20)
+        # --- MODIFICATION END ---
+
         
         matches_df = fetch_matches_from_db(
-            sport_type=st.session_state.sport_type, # <-- ADD THIS
+            sport_type=st.session_state.sport_type,
+            league_name=selected_league_filter, # <-- PASS THE NEW FILTER
             include_past=filter_past, 
             include_future=filter_future,
             limit=show_count
