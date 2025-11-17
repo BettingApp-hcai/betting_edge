@@ -325,7 +325,7 @@ with st.sidebar:
             current_year_value = st.session_state.get('selected_fetch_year', datetime.now().year)
             year = st.number_input(
                 "Year",
-                min_value=2020,
+                min_value=2000,
                 max_value=2025,
                 value=current_year_value,
                 help=f"{sport_name} season year",
