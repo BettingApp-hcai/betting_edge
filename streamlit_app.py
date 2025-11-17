@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime, timedelta
+from typing import Optional
 import os
 from data_agent import DataAgent
 from dotenv import load_dotenv  # <-- Import this
