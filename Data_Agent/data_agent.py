@@ -49,10 +49,11 @@ class DataAgent:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Matches table
+        # Sport type field for multi-sport support
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS matches (
                 match_id INTEGER PRIMARY KEY,
+                sport_type TEXT,
                 league_id INTEGER,
                 league_name TEXT,
                 season INTEGER,
@@ -268,12 +269,13 @@ class DataAgent:
         
         cursor.execute('''
             INSERT OR REPLACE INTO matches 
-            (match_id, league_id, league_name, season, match_date,
+            (match_id, sport_type, league_id, league_name, season, match_date,
              home_team_id, home_team_name, away_team_id, away_team_name,
              home_score, away_score, status, venue, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             fixture['id'],
+            self.sport_type,
             league['id'],
             league['name'],
             league['season'],
@@ -418,15 +420,25 @@ class DataAgent:
 
 # Example usage
 if __name__ == "__main__":
-    # Initialize agent with your API key
-    API_KEY = "your_api_key_here"  # Replace with actual key
-    agent = DataAgent(API_KEY)
+    # Initialize agent - uses default keys
+    
+    # For API-Football (Soccer)
+    football_agent = DataAgent(sport_type="football")
+    print("✓ Football agent initialized with default API key")
+    
+    # For College Football
+    cfb_agent = DataAgent(sport_type="college_football")
+    print("✓ College Football agent initialized with default API key")
     
     # Example: Fetch and store Premier League matches
     # league_id = 39  # Premier League
     # season = 2024
-    # matches = agent.fetch_matches(league_id, season)
+    # matches = football_agent.fetch_matches(league_id, season)
     # 
     # for match in matches[:5]:  # First 5 matches
-    #     agent.store_match(match)
-    #     agent.refresh_data_for_match(match['fixture']['id'])
+    #     football_agent.store_match(match)
+    #     football_agent.refresh_data_for_match(match['fixture']['id'])
+    
+    print("\n🎯 Ready to fetch data! API keys configured.")
+    print("   - API-Football: ****" + football_agent.api_key[-8:])
+    print("   - College Football: ****" + cfb_agent.api_key[-8:])
