@@ -3,9 +3,6 @@ streamlit==1.29.0
 pandas==2.1.4
 requests==2.31.0
 
-# Database
-sqlite3  # Built-in with Python, no installation needed
-
 # Data Processing
 numpy==1.26.2
 
@@ -24,6 +21,13 @@ chromadb==0.4.22
 python-dotenv==1.0.0
 APScheduler==3.10.4
 
+# Data Visualization
+plotly==5.18.0
+matplotlib==3.8.2
+
+# API Rate Limiting & Utilities
+ratelimit==2.2.1
+tenacity==8.2.3
 # Data Visualization
 plotly==5.18.0
 matplotlib==3.8.2
