@@ -88,7 +88,10 @@ def get_unique_leagues(sport_type: str):
         conn.close()
         return ["All Leagues"]
 
-def fetch_matches_from_db(sport_type: str, league_name: Optional[str] = None, include_past=True, include_future=True, limit=100):
+def fetch_matches_from_db(sport_type: str, 
+                          league_name: Optional[str] = None, 
+                          selected_year: Optional[int] = None, # <-- NEW PARAMETER
+                          include_past=True, include_future=True, limit=100):
     """Fetch matches from database with filtering options."""
     conn = get_db_connection()
     
@@ -103,13 +106,20 @@ def fetch_matches_from_db(sport_type: str, league_name: Optional[str] = None, in
     if league_name and league_name != "All Leagues":
         conditions.append("league_name = ?")
         params.append(league_name)
+    
+    # --- MODIFICATION START ---
+    # Add year filter for college sports
+    if selected_year and (sport_type == "college_football" or sport_type == "basketball"):
+        conditions.append("season = ?") # The 'season' column stores the year for college sports
+        params.append(selected_year)
+    # --- MODIFICATION END ---
         
     where_clause = f"WHERE {' AND '.join(conditions)}"
     
     query = f"""
         SELECT match_id, league_name, match_date, 
                home_team_name, away_team_name, 
-               home_score, away_score, status
+               home_score, away_score, status, season
         FROM matches
         {where_clause}
         ORDER BY match_date DESC
@@ -309,13 +319,20 @@ with st.sidebar:
         # --- MODIFICATION: Grouped CFB and CBB ---
         else:  # college_football or basketball
             sport_name = st.session_state.sport_type.replace('_', ' ').title()
+            
+            # --- MODIFICATION START ---
+            # Define year input and store it in session state
+            current_year_value = st.session_state.get('selected_fetch_year', datetime.now().year)
             year = st.number_input(
                 "Year",
                 min_value=2020,
                 max_value=2025,
-                value=2024,
-                help=f"{sport_name} season year"
+                value=current_year_value,
+                help=f"{sport_name} season year",
+                key="sidebar_fetch_year_input" # Add a key
             )
+            st.session_state.selected_fetch_year = year # Store the value
+            # --- MODIFICATION END ---
             
             week = st.number_input(
                 "Week (optional)",
@@ -474,6 +491,7 @@ else:
             matches_df = fetch_matches_from_db(
                 sport_type=st.session_state.sport_type,
                 league_name=selected_league_filter,
+                selected_year=year if st.session_state.sport_type in ["college_football", "basketball"] else None, # <-- NEW
                 include_past=filter_past, 
                 include_future=filter_future,
                 limit=show_count
