@@ -45,7 +45,7 @@ class DataAgent:
         
         # --- MODIFICATION: Grouped college sports ---
         elif sport_type in ("college_football", "basketball"):
-            self.base_url = "https://apinext.collegefootballdata.com"
+            self.base_url = "https://api.collegefootballdata.com" # <-- SOLUTION
             self.headers = {
                 'Authorization': f'Bearer {self.api_key}',
                 'Accept': 'application/json'
