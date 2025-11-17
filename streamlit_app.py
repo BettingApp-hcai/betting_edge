@@ -65,17 +65,22 @@ def get_db_connection():
     """Get database connection."""
     return sqlite3.connect("betting_edge.db")
 
-def fetch_matches_from_db(include_past=True, include_future=True, limit=100):
+# In streamlit_app.py
+
+def fetch_matches_from_db(sport_type: str, include_past=True, include_future=True, limit=100):
     """Fetch matches from database with filtering options."""
     conn = get_db_connection()
     
-    conditions = []
+    # --- MODIFICATION START ---
+    params = [sport_type] # Start with sport_type as the first parameter
+    conditions = ["sport_type = ?"] # Start with the sport_type filter
+    
     if not include_past:
         conditions.append("match_date >= datetime('now')")
     if not include_future:
         conditions.append("match_date < datetime('now')")
     
-    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    where_clause = f"WHERE {' AND '.join(conditions)}"
     
     query = f"""
         SELECT match_id, league_name, match_date, 
@@ -84,9 +89,13 @@ def fetch_matches_from_db(include_past=True, include_future=True, limit=100):
         FROM matches
         {where_clause}
         ORDER BY match_date DESC
-        LIMIT {limit}
+        LIMIT ?
     """
-    df = pd.read_sql_query(query, conn)
+    params.append(limit) # Add limit as the last parameter
+    
+    df = pd.read_sql_query(query, conn, params=tuple(params)) # Pass params tuple
+    # --- MODIFICATION END ---
+    
     conn.close()
     return df
 
@@ -383,6 +392,7 @@ with tab1:
             show_count = st.slider("Show", 10, 100, 20)
         
         matches_df = fetch_matches_from_db(
+            sport_type=st.session_state.sport_type, # <-- ADD THIS
             include_past=filter_past, 
             include_future=filter_future,
             limit=show_count
@@ -427,7 +437,11 @@ with tab2:
         show_future = st.checkbox("Show Future Matches", value=True)
     
     if os.path.exists("betting_edge.db"):
-        matches_df = fetch_matches_from_db(include_past=show_past, include_future=show_future)
+        matches_df = fetch_matches_from_db(
+            sport_type=st.session_state.sport_type, # <-- ADD THIS
+            include_past=show_past, 
+            include_future=show_future
+        )
         
         if not matches_df.empty and len(matches_df) > 0:
             st.info(f"Showing {len(matches_df)} matches")
@@ -503,16 +517,22 @@ with tab3:
     if os.path.exists("betting_edge.db"):
         conn = get_db_connection()
         
-        # Get unique teams
+        # --- MODIFICATION START ---
+        # Get unique teams FOR THE CURRENT SPORT
         query = """
             SELECT DISTINCT home_team_name as team_name, home_team_id as team_id
             FROM matches
+            WHERE sport_type = ?
             UNION
             SELECT DISTINCT away_team_name as team_name, away_team_id as team_id
             FROM matches
+            WHERE sport_type = ?
             ORDER BY team_name
         """
-        teams_df = pd.read_sql_query(query, conn)
+        # Pass the sport_type as a parameter twice (for the UNION)
+        teams_df = pd.read_sql_query(query, conn, params=(st.session_state.sport_type, st.session_state.sport_type))
+        # --- MODIFICATION END ---
+        
         conn.close()
         
         if not teams_df.empty:
@@ -564,7 +584,7 @@ with tab4:
     st.header("Betting Odds")
     
     if os.path.exists("betting_edge.db"):
-        matches_df = fetch_matches_from_db()
+        matches_df = fetch_matches_from_db(sport_type=st.session_state.sport_type)
         
         if not matches_df.empty and len(matches_df) > 0:
             # Filter matches with odds
