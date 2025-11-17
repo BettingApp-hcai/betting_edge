@@ -43,9 +43,15 @@ class DataAgent:
                 'x-rapidapi-host': 'v3.football.api-sports.io'
             }
         
-        # --- MODIFICATION: Grouped college sports ---
-        elif sport_type in ("college_football", "basketball"):
-            self.base_url = "https://api.collegefootballdata.com" # <-- SOLUTION
+        #--- MODIFICATION: Split college sports ---
+        elif sport_type == "college_football":
+            self.base_url = "https://api.collegefootballdata.com" # This is correct for CFB
+            self.headers = {
+                'Authorization': f'Bearer {self.api_key}',
+                'Accept': 'application/json'
+            }
+        elif sport_type == "basketball":
+            self.base_url = "https://api.collegebasketballdata.com" # <-- This is the NEW, correct URL
             self.headers = {
                 'Authorization': f'Bearer {self.api_key}',
                 'Accept': 'application/json'
@@ -194,7 +200,6 @@ class DataAgent:
         """
         Fetch matches based on the agent's sport_type.
         """
-        # --- MODIFICATION: Reroute based on sport_type ---
         if self.sport_type == "college_football":
             return self._fetch_college_data(
                 path="/games", 
@@ -202,11 +207,13 @@ class DataAgent:
                 week=week
             )
         elif self.sport_type == "basketball":
+            # --- MODIFICATION: Fix the path ---
             return self._fetch_college_data(
-                path="/basketball/games",  # Use the basketball endpoint
+                path="/games",  # <-- Change from "/basketball/games" to "/games"
                 year=year or season, 
                 week=week
             )
+            # --- END MODIFICATION ---
         else: # football
             return self._fetch_football_fixtures(league_id, season, from_date, to_date)
         # --- END MODIFICATION ---
