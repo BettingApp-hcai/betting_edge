@@ -214,28 +214,40 @@ class DataAgent:
     # --- MODIFICATION: New generic function ---
     def _fetch_college_data(self, path: str, year: int, week: Optional[int] = None) -> List[Dict]:
         """Generic fetcher for college sports (CFB, CBB)."""
-        endpoint = f"{self.base_url}{path}" # Use the path argument
+        endpoint = f"{self.base_url}{path}"
         params = {'year': year}
         
         if week:
             params['week'] = week
         
         try:
-            print(f"Fetching College Data from: {endpoint}")
-            print(f"Params: {params}")
+            print(f"DEBUG: Fetching College Data from: {endpoint}")
+            print(f"DEBUG: Params: {params}")
+            print(f"DEBUG: Headers: {self.headers}") # Log headers to confirm Authorization token
             
             response = requests.get(endpoint, headers=self.headers, params=params)
-            print(f"Response status: {response.status_code}")
+            print(f"DEBUG: Response status: {response.status_code}")
             
-            response.raise_for_status()
+            # --- MODIFICATION START ---
+            response.raise_for_status() # This will raise an HTTPError for bad responses (4xx or 5xx)
+            
+            # Crucial: Check if the response content is actually JSON before parsing
+            # Some APIs might return text/html for errors even with 200 status
+            if 'application/json' not in response.headers.get('Content-Type', ''):
+                print(f"ERROR: Expected JSON, but received Content-Type: {response.headers.get('Content-Type')}")
+                print(f"ERROR: Raw response text: {response.text[:500]}...") # Print first 500 chars of raw response
+                return []
+                
             data = response.json()
+            # --- MODIFICATION END ---
             
-            print(f"Games found: {len(data) if isinstance(data, list) else 0}")
+            print(f"DEBUG: Games found: {len(data) if isinstance(data, list) else 0}")
             
             # Debug: print first game structure
             if data and len(data) > 0:
-                print("First game structure:")
-                print(json.dumps(data[0], indent=2))
+                print("DEBUG: First game structure:")
+                # Use json.dumps to pretty print, but also truncate if it's too large
+                print(json.dumps(data[0], indent=2)[:1000] + "..." if len(json.dumps(data[0])) > 1000 else json.dumps(data[0], indent=2))
             
             # Convert CFB/CBB format to our standard format
             converted_games = []
@@ -248,7 +260,7 @@ class DataAgent:
                         'venue': {'name': game.get('venue') or 'TBD'}
                     },
                     'league': {
-                        'id': 0,
+                        'id': 0, # College leagues don't always have distinct IDs
                         'name': 'College Football' if self.sport_type == 'college_football' else 'College Basketball',
                         'season': game.get('season', year)
                     },
@@ -271,10 +283,19 @@ class DataAgent:
             
             return converted_games
             
+        except requests.exceptions.HTTPError as e:
+            print(f"ERROR: HTTP error during college data fetch: {e}")
+            if e.response is not None:
+                print(f"ERROR: Response status code: {e.response.status_code}")
+                print(f"ERROR: Response headers: {e.response.headers}")
+                print(f"ERROR: Response text: {e.response.text}")
+            return []
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching college games: {e}")
-            if hasattr(e, 'response') and e.response is not None:
-                print(f"Response text: {e.response.text}")
+            print(f"ERROR: General request error during college data fetch: {e}")
+            return []
+        except json.JSONDecodeError as e: # Catch the specific JSON parsing error
+            print(f"ERROR: Failed to decode JSON from API response: {e}")
+            print(f"ERROR: Suspected non-JSON response from {endpoint}. Status: {response.status_code}. Content: {response.text[:500]}...")
             return []
     # --- END MODIFICATION ---
     

@@ -320,7 +320,7 @@ with st.sidebar:
             week = st.number_input(
                 "Week (optional)",
                 min_value=0,
-                max_value=18, # CBB has more weeks, 18 is safe
+                max_value=18, 
                 value=0,
                 help="Leave at 0 for all weeks, or specify a week number"
             )
@@ -328,11 +328,12 @@ with st.sidebar:
             if st.button(f"📥 Fetch {sport_name} Games"):
                 with st.spinner(f"Fetching {sport_name} games for {year}..."):
                     try:
-                        # API Test Expander
+                        # --- MODIFICATION START ---
+                        # First, let's test the raw API response
                         if st.session_state.data_agent:
                             import requests
+                            import json # <-- Import json
                             
-                            # Dynamically set test path
                             if st.session_state.sport_type == "college_football":
                                 test_path = "/games"
                             else: # basketball
@@ -342,19 +343,36 @@ with st.sidebar:
                             test_params = {'year': year, 'week': 1}  # Just week 1 for testing
                             
                             with st.expander("🔍 API Test (Week 1 sample)"):
-                                test_response = requests.get(
-                                    test_url, 
-                                    headers=st.session_state.data_agent.headers, 
-                                    params=test_params
-                                )
-                                if test_response.status_code == 200:
-                                    test_data = test_response.json()
-                                    if test_data and len(test_data) > 0:
-                                        st.json(test_data[0])  # Show first game
+                                try:
+                                    st.write(f"Testing URL: {test_url}")
+                                    test_response = requests.get(
+                                        test_url, 
+                                        headers=st.session_state.data_agent.headers, 
+                                        params=test_params
+                                    )
+                                    st.write(f"Response Status: {test_response.status_code}")
+                                    
+                                    # Check content type
+                                    content_type = test_response.headers.get('Content-Type', '')
+                                    st.write(f"Content-Type: {content_type}")
+
+                                    if 'application/json' in content_type:
+                                        test_data = test_response.json()
+                                        if test_data and len(test_data) > 0:
+                                            st.json(test_data[0])  # Show first game
+                                        else:
+                                            st.warning("No data returned")
                                     else:
-                                        st.warning("No data returned")
-                                else:
-                                    st.error(f"API Error: {test_response.status_code}")
+                                        st.error("API did not return JSON. See raw text below:")
+                                        st.code(test_response.text[:1000]) # Show first 1000 chars
+
+                                except json.JSONDecodeError as e:
+                                    st.error(f"JSON PARSING FAILED: {e}")
+                                    st.error("This usually means an invalid API key or bad request. See raw text below:")
+                                    st.code(test_response.text[:1000]) # Show first 1000 chars
+                                except requests.RequestException as e:
+                                    st.error(f"API Request Failed: {e}")
+                        # --- MODIFICATION END ---
                         
                         games = st.session_state.data_agent.fetch_matches(
                             year=year,
@@ -381,7 +399,6 @@ with st.sidebar:
                     except Exception as e:
                         st.error(f"Error: {e}")
                         st.info("Check the terminal for detailed error messages")
-        # --- END MODIFICATION ---
 
 # Main Content Area
 # --- MODIFICATION: Added check for agent initialization ---
