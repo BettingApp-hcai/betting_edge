@@ -176,73 +176,121 @@ with st.sidebar:
     if st.session_state.data_agent:
         st.subheader("🔄 Fetch Data")
         
-        league_options = {
-            "Premier League": 39,
-            "La Liga": 140,
-            "Serie A": 135,
-            "Bundesliga": 78,
-            "Ligue 1": 61
-        }
-        
-        selected_league = st.selectbox(
-            "Select League",
-            options=list(league_options.keys())
-        )
-        
-        season = st.number_input(
-            "Season",
-            min_value=2020,
-            max_value=2025,
-            value=2024,
-            help="For most leagues, use the year the season starts (e.g., 2024 for 2024-25 season)"
-        )
-        
-        # Date range for better filtering
-        col_date1, col_date2 = st.columns(2)
-        with col_date1:
-            from_date = st.date_input(
-                "From Date",
-                value=datetime.now() - timedelta(days=30),
-                help="Fetch matches from this date"
+        if st.session_state.sport_type == "football":
+            # Soccer leagues
+            league_options = {
+                "Premier League": 39,
+                "La Liga": 140,
+                "Serie A": 135,
+                "Bundesliga": 78,
+                "Ligue 1": 61
+            }
+            
+            selected_league = st.selectbox(
+                "Select League",
+                options=list(league_options.keys())
             )
-        with col_date2:
-            to_date = st.date_input(
-                "To Date", 
-                value=datetime.now() + timedelta(days=7),
-                help="Fetch matches until this date"
+            
+            season = st.number_input(
+                "Season",
+                min_value=2020,
+                max_value=2025,
+                value=2024,
+                help="For most leagues, use the year the season starts (e.g., 2024 for 2024-25 season)"
             )
-        
-        if st.button("📥 Fetch Matches"):
-            with st.spinner(f"Fetching {selected_league} matches..."):
-                try:
-                    league_id = league_options[selected_league]
-                    matches = st.session_state.data_agent.fetch_matches(
-                        league_id, 
-                        season,
-                        from_date=from_date.strftime('%Y-%m-%d'),
-                        to_date=to_date.strftime('%Y-%m-%d')
-                    )
-                    
-                    if matches:
-                        st.info(f"Found {len(matches)} matches. Storing in database...")
-                        stored_count = 0
-                        for match in matches[:50]:  # Limit to 50 to avoid rate limits
-                            try:
-                                st.session_state.data_agent.store_match(match)
-                                stored_count += 1
-                            except Exception as e:
-                                st.warning(f"Error storing match: {e}")
-                                continue
+            
+            # Date range for better filtering
+            col_date1, col_date2 = st.columns(2)
+            with col_date1:
+                from_date = st.date_input(
+                    "From Date",
+                    value=datetime.now() - timedelta(days=30),
+                    help="Fetch matches from this date"
+                )
+            with col_date2:
+                to_date = st.date_input(
+                    "To Date", 
+                    value=datetime.now() + timedelta(days=7),
+                    help="Fetch matches until this date"
+                )
+            
+            if st.button("📥 Fetch Matches"):
+                with st.spinner(f"Fetching {selected_league} matches..."):
+                    try:
+                        league_id = league_options[selected_league]
+                        matches = st.session_state.data_agent.fetch_matches(
+                            league_id=league_id, 
+                            season=season,
+                            from_date=from_date.strftime('%Y-%m-%d'),
+                            to_date=to_date.strftime('%Y-%m-%d')
+                        )
                         
-                        st.success(f"✅ Stored {stored_count} matches!")
-                        st.balloons()
-                        st.rerun()
-                    else:
-                        st.warning(f"No matches found for {selected_league} season {season}")
-                        st.info("Try adjusting the date range or season year")
-                except Exception as e:
-                    st.error(f"Error: {e}")
-                    st.info("This might be an API rate limit or invalid season. Try again in a moment.")
+                        if matches:
+                            st.info(f"Found {len(matches)} matches. Storing in database...")
+                            stored_count = 0
+                            for match in matches[:50]:  # Limit to 50 to avoid rate limits
+                                try:
+                                    st.session_state.data_agent.store_match(match)
+                                    stored_count += 1
+                                except Exception as e:
+                                    st.warning(f"Error storing match: {e}")
+                                    continue
+                            
+                            st.success(f"✅ Stored {stored_count} matches!")
+                            st.balloons()
+                            st.rerun()
+                        else:
+                            st.warning(f"No matches found for {selected_league} season {season}")
+                            st.info("Try adjusting the date range or season year")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+                        st.info("This might be an API rate limit or invalid season. Try again in a moment.")
+        
+        else:  # college_football
+            year = st.number_input(
+                "Year",
+                min_value=2020,
+                max_value=2025,
+                value=2024,
+                help="College football season year"
+            )
+            
+            week = st.number_input(
+                "Week (optional)",
+                min_value=0,
+                max_value=15,
+                value=0,
+                help="Leave at 0 for all weeks, or specify a week number"
+            )
+            
+            if st.button("📥 Fetch Games"):
+                with st.spinner(f"Fetching CFB games for {year}..."):
+                    try:
+                        games = st.session_state.data_agent.fetch_matches(
+                            year=year,
+                            week=week if week > 0 else None
+                        )
+                        
+                        if games:
+                            st.info(f"Found {len(games)} games. Storing in database...")
+                            stored_count = 0
+                            for game in games:
+                                try:
+                                    st.session_state.data_agent.store_match(game)
+                                    stored_count += 1
+                                except Exception as e:
+                                    st.warning(f"Error storing game: {e}")
+                                    continue
+                            
+                            st.success(f"✅ Stored {stored_count} games!")
+                            st.balloons()
+                            st.rerun()
+                        else:
+                            st.warning(f"No games found for {year}")
+                            st.info("Try a different year or check your API key")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+                        st.info("Check the terminal for detailed error messages")
 
 # Main Content Area
 tab1, tab2, tab3, tab4 = st.tabs(["🏠 Dashboard", "⚽ Matches", "📊 Statistics", "💰 Odds"])

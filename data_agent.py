@@ -36,9 +36,10 @@ class DataAgent:
                 'x-rapidapi-host': 'v3.football.api-sports.io'
             }
         else:  # college_football
-            self.base_url = "https://api.sportsdata.io/v3/cfb"
+            self.base_url = "https://apinext.collegefootballdata.com"
             self.headers = {
-                'Ocp-Apim-Subscription-Key': self.api_key
+                'Authorization': f'Bearer {self.api_key}',
+                'Accept': 'application/json'
             }
         
         self.db_path = db_path
@@ -172,21 +173,94 @@ class DataAgent:
             print(f"Error fetching odds: {e}")
             return None
     
-    def fetch_matches(self, league_id: int, season: int, 
+    def fetch_matches(self, league_id: int = None, season: int = None, 
                      from_date: Optional[str] = None,
-                     to_date: Optional[str] = None) -> List[Dict]:
+                     to_date: Optional[str] = None,
+                     year: Optional[int] = None,
+                     week: Optional[int] = None) -> List[Dict]:
         """
         Fetch matches for a specific league and season.
         
         Args:
-            league_id: League ID (e.g., 39 for Premier League)
-            season: Season year (e.g., 2024)
-            from_date: Start date (YYYY-MM-DD)
-            to_date: End date (YYYY-MM-DD)
+            league_id: League ID (e.g., 39 for Premier League) - for football only
+            season: Season year (e.g., 2024) - for football only
+            from_date: Start date (YYYY-MM-DD) - for football only
+            to_date: End date (YYYY-MM-DD) - for football only
+            year: Year for college football (e.g., 2024)
+            week: Week number for college football (optional)
             
         Returns:
             List of match dictionaries
         """
+        if self.sport_type == "college_football":
+            return self._fetch_cfb_games(year or season, week)
+        else:
+            return self._fetch_football_fixtures(league_id, season, from_date, to_date)
+    
+    def _fetch_cfb_games(self, year: int, week: Optional[int] = None) -> List[Dict]:
+        """Fetch college football games."""
+        endpoint = f"{self.base_url}/games"
+        params = {'year': year}
+        
+        if week:
+            params['week'] = week
+        
+        try:
+            print(f"Fetching CFB from: {endpoint}")
+            print(f"Params: {params}")
+            
+            response = requests.get(endpoint, headers=self.headers, params=params)
+            print(f"Response status: {response.status_code}")
+            
+            response.raise_for_status()
+            data = response.json()
+            
+            print(f"CFB Games found: {len(data) if isinstance(data, list) else 0}")
+            
+            # Convert CFB format to our standard format
+            converted_games = []
+            for game in data:
+                converted_game = {
+                    'fixture': {
+                        'id': game.get('id'),
+                        'date': game.get('start_date'),
+                        'status': {'long': game.get('status', 'Unknown')},
+                        'venue': {'name': game.get('venue', 'Unknown')}
+                    },
+                    'league': {
+                        'id': 0,  # CFB doesn't have league IDs
+                        'name': 'College Football',
+                        'season': game.get('season')
+                    },
+                    'teams': {
+                        'home': {
+                            'id': game.get('home_id', 0),
+                            'name': game.get('home_team', 'Unknown')
+                        },
+                        'away': {
+                            'id': game.get('away_id', 0),
+                            'name': game.get('away_team', 'Unknown')
+                        }
+                    },
+                    'goals': {
+                        'home': game.get('home_points'),
+                        'away': game.get('away_points')
+                    }
+                }
+                converted_games.append(converted_game)
+            
+            return converted_games
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching CFB games: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response text: {e.response.text}")
+            return []
+    
+    def _fetch_football_fixtures(self, league_id: int, season: int, 
+                                 from_date: Optional[str] = None,
+                                 to_date: Optional[str] = None) -> List[Dict]:
+        """Fetch soccer/football fixtures."""
         endpoint = f"{self.base_url}/fixtures"
         params = {
             'league': league_id,
