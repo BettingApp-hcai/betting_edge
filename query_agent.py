@@ -4,7 +4,7 @@ from typing import Optional, Literal
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.pydantic_v1 import BaseModel, Field
-from langchain.output_parsers import PydanticOutputParser # <-- Standard Parser
+from langchain.output_parsers import PydanticOutputParser
 
 # 1. Define the Output Schema
 class SportsDataQuery(BaseModel):
@@ -33,13 +33,14 @@ class SportsDataQuery(BaseModel):
 # 2. Initialize the LLM
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-# 3. Set up the Parser (The Fix)
+# 3. Set up the Parser
 parser = PydanticOutputParser(pydantic_object=SportsDataQuery)
 
-# 4. Define the Prompt
+# 4. Define the Prompt Template
+# Note: We use a standard string (no f-string) and define placeholders inside.
 current_year = datetime.datetime.now().year
 
-system_prompt = f"""
+system_template = """
 You are an expert sports data query translator. 
 Your job is to convert natural language user questions into structured API parameters.
 
@@ -51,13 +52,22 @@ RULES:
 3. **Season**: If the user says "this season" or "current", assume {current_year}. For "last season", subtract 1.
 4. **Team Names**: Extract the core team name (e.g., "Liverpool FC" -> "Liverpool").
 
-{parser.get_format_instructions()}
+{format_instructions}
 """
 
+# Create the prompt object
 prompt = ChatPromptTemplate.from_messages([
-    ("system", system_prompt),
+    ("system", system_template),
     ("human", "{query}"),
 ])
+
+# --- THE FIX ---
+# We inject the confusing JSON instructions safely using .partial()
+# This prevents LangChain from trying to parse the JSON curly braces as variables.
+safe_prompt = prompt.partial(
+    current_year=str(current_year),
+    format_instructions=parser.get_format_instructions()
+)
 
 # 5. The Agent Function
 def parse_user_query(user_query: str) -> SportsDataQuery:
@@ -66,8 +76,8 @@ def parse_user_query(user_query: str) -> SportsDataQuery:
     """
     print(f"🤖 Query Agent: Analyzing '{user_query}'...")
     
-    # Create the chain with the parser
-    chain = prompt | llm | parser
+    # Build the chain using the safe prompt
+    chain = safe_prompt | llm | parser
     
     try:
         result = chain.invoke({"query": user_query})
