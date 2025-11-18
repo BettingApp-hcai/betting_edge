@@ -1,4 +1,7 @@
 # /streamlit_app.py
+import dotenv
+dotenv.load_dotenv()
+
 import streamlit as st
 import sqlite3
 import pandas as pd
