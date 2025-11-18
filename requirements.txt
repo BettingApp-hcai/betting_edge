@@ -16,7 +16,7 @@ langchain-openai  # <-- This is the new, required package
 openai
 
 # Vector Database (for RAG)
-chromadb==0.4.22
+chromadb
 
 # Additional Utilities
 python-dotenv==1.0.0
