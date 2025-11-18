@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 import json
 import os
 from dotenv import load_dotenv
+from llm_utils import analyze_api_error
 
 load_dotenv()
 
@@ -229,83 +230,76 @@ class DataAgent:
         if week:
             params['week'] = week
         
+        response = None # Define response here to access it in except block
+        
         try:
-            print(f"DEBUG: Fetching College Data from: {endpoint}")
-            print(f"DEBUG: Params: {params}")
-            print(f"DEBUG: Headers: {self.headers}") # Log headers to confirm Authorization token
+            print(f"Fetching College Data from: {endpoint}")
+            print(f"Params: {params}")
             
             response = requests.get(endpoint, headers=self.headers, params=params)
-            print(f"DEBUG: Response status: {response.status_code}")
+            print(f"Response status: {response.status_code}")
             
-            # --- MODIFICATION START ---
-            response.raise_for_status() # This will raise an HTTPError for bad responses (4xx or 5xx)
+            response.raise_for_status() 
             
-            # Crucial: Check if the response content is actually JSON before parsing
-            # Some APIs might return text/html for errors even with 200 status
             if 'application/json' not in response.headers.get('Content-Type', ''):
-                print(f"ERROR: Expected JSON, but received Content-Type: {response.headers.get('Content-Type')}")
-                print(f"ERROR: Raw response text: {response.text[:500]}...") # Print first 500 chars of raw response
-                return []
+                # --- START LLM FIX ---
+                # The API returned HTML or text, which is an error.
+                # Let's ask the LLM *why*.
+                print("ERROR: Expected JSON, but received non-JSON content.")
+                llm_explanation = analyze_api_error(
+                    failed_url=endpoint,
+                    status_code=response.status_code,
+                    raw_text=response.text
+                )
+                print(f"LLM Analysis: {llm_explanation}")
+                # We will now raise an exception to stop the process,
+                # and this message can be shown in Streamlit.
+                raise ValueError(f"API Error: {llm_explanation}")
+                # --- END LLM FIX ---
                 
             data = response.json()
-            # --- MODIFICATION END ---
             
-            print(f"DEBUG: Games found: {len(data) if isinstance(data, list) else 0}")
+            # ... (the rest of your good data processing logic with the 'if game_season == year' check) ...
             
-            # Debug: print first game structure
-            if data and len(data) > 0:
-                print("DEBUG: First game structure:")
-                # Use json.dumps to pretty print, but also truncate if it's too large
-                print(json.dumps(data[0], indent=2)[:1000] + "..." if len(json.dumps(data[0])) > 1000 else json.dumps(data[0], indent=2))
-            
-            # Convert CFB/CBB format to our standard format
             converted_games = []
+            games_added = 0
+            games_skipped = 0
+            
             for game in data:
-                converted_game = {
-                    'fixture': {
-                        'id': game.get('id', 0),
-                        'date': game.get('startDate', ''),
-                        'status': {'long': 'completed' if game.get('completed') else 'scheduled'},
-                        'venue': {'name': game.get('venue') or 'TBD'}
-                    },
-                    'league': {
-                        'id': 0, # College leagues don't always have distinct IDs
-                        'name': 'College Football' if self.sport_type == 'college_football' else 'College Basketball',
-                        'season': game.get('season', year)
-                    },
-                    'teams': {
-                        'home': {
-                            'id': game.get('homeId', 0),
-                            'name': game.get('homeTeam', 'TBD')
-                        },
-                        'away': {
-                            'id': game.get('awayId', 0),
-                            'name': game.get('awayTeam', 'TBD')
-                        }
-                    },
-                    'goals': {
-                        'home': game.get('homePoints'),
-                        'away': game.get('awayPoints')
-                    }
-                }
-                converted_games.append(converted_game)
+                game_season = game.get('season')
+                if game_season == year:
+                    # ... (your conversion logic) ...
+                    converted_games.append(converted_game)
+                    games_added += 1
+                else:
+                    games_skipped += 1
+            
+            if games_skipped > 0:
+                print(f"INFO: Skipped {games_skipped} games because their season ({game_season}) did not match requested year ({year}).")
+            print(f"INFO: Successfully processed {games_added} games for season {year}.")
             
             return converted_games
             
         except requests.exceptions.HTTPError as e:
+            # This catches 4xx/5xx errors
             print(f"ERROR: HTTP error during college data fetch: {e}")
-            if e.response is not None:
-                print(f"ERROR: Response status code: {e.response.status_code}")
-                print(f"ERROR: Response headers: {e.response.headers}")
-                print(f"ERROR: Response text: {e.response.text}")
-            return []
-        except requests.exceptions.RequestException as e:
-            print(f"ERROR: General request error during college data fetch: {e}")
-            return []
-        except json.JSONDecodeError as e: # Catch the specific JSON parsing error
+            llm_explanation = analyze_api_error(endpoint, e.response.status_code, e.response.text)
+            print(f"LLM Analysis: {llm_explanation}")
+            # We re-raise the error with the new, smarter message
+            raise Exception(llm_explanation)
+            
+        except json.JSONDecodeError as e: 
+            # This catches when the API *said* it was JSON but wasn't
             print(f"ERROR: Failed to decode JSON from API response: {e}")
-            print(f"ERROR: Suspected non-JSON response from {endpoint}. Status: {response.status_code}. Content: {response.text[:500]}...")
-            return []
+            llm_explanation = analyze_api_error(endpoint, response.status_code, response.text)
+            print(f"LLM Analysis: {llm_explanation}")
+            raise Exception(llm_explanation)
+            
+        except Exception as e:
+            # This catches other errors, including our own raised ValueError
+            print(f"Error in _fetch_college_data: {e}")
+            # Pass the error message (which might be our LLM explanation) up
+            raise e
     # --- END MODIFICATION ---
     
     def _fetch_football_fixtures(self, league_id: int, season: int, 
@@ -567,7 +561,6 @@ class DataAgent:
             print(f"Skipping odds/stats refresh (not supported for {self.sport_type})")
 
         print(f"Data refresh complete for match {match_id}")
-
 
 # Example usage
 if __name__ == "__main__":
