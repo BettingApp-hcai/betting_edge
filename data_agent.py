@@ -172,6 +172,32 @@ class DataAgent:
         print(f"Database initialized at {self.db_path}")
 
     # ... (fetch_odds function is unchanged) ...
+    def fetch_current_soccer_data(self, competition_code: str = "PL"): 
+        """
+        Fetches CURRENT season data from Football-Data.org
+        Common Codes: PL (Premier League), CL (Champions League), 
+        BL1 (Bundesliga), SA (Serie A), PD (La Liga), FL1 (Ligue 1)
+        """
+        url = f"https://api.football-data.org/v4/competitions/{competition_code}/matches"
+        headers = {'X-Auth-Token': os.getenv("API_KEY_FOOTBALL_DATA")}
+        
+        # Filter for current season matches
+        params = {'status': 'SCHEDULED,LIVE,FINISHED,POSTPONED'} 
+        
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            # You will need a new converter here because their JSON structure 
+            # is different from API-Sports.
+            # I can provide that converter if you decide to switch.
+            return data['matches']
+            
+        except Exception as e:
+            print(f"Error fetching from Football-Data.org: {e}")
+            return []
+
     def fetch_odds(self, match_id: int) -> Optional[Dict]:
         """
         Fetch betting odds for a specific match. (Football only)
