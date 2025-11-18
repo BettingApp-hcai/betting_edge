@@ -269,7 +269,7 @@ class DataAgent:
                 game_season = game.get('season')
                 if game_season == year:
                     # ... (your conversion logic) ...
-                    converted_games.append(converted_game)
+                    converted_games.append(converted_games)
                     games_added += 1
                 else:
                     games_skipped += 1
