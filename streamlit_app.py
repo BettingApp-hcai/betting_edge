@@ -10,7 +10,7 @@ from typing import Optional
 
 # --- NEW IMPORT ---
 # Make sure you created agent_modules/query_agent.py first!
-from agent_modules.query_agent import parse_user_query 
+from query_agent import parse_user_query 
 # ------------------
 
 load_dotenv() 
