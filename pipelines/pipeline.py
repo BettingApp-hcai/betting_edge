@@ -1,4 +1,4 @@
-# pipelines/pipeline.py
+# pipelines/pipeline.py (UPDATED)
 
 from agent_modules.data_agent_wrapper import DataAgentLC
 from agent_modules.prediction_agent_wrapper import PredictionAgentLC
@@ -7,7 +7,6 @@ from agent_modules.behavior_agent_wrapper import BehaviorAgentLC
 from agent_modules.recommendation_agent_wrapper import RecommendationAgentLC
 from agent_modules.ethics_agent_wrapper import EthicsAgentLC
 from agent_modules.query_agent_wrapper import QueryAgentLC
-
 
 class BettingEdgePipeline:
     """
@@ -27,6 +26,7 @@ class BettingEdgePipeline:
     def run(self, user_query: str):
         """
         Runs the full pipeline start to finish.
+        Now handles returning multiple matches or a single selected match.
         """
 
         # Step 1: Query agent
@@ -46,38 +46,50 @@ class BettingEdgePipeline:
                 "message": "No matching results from data agent",
             }
 
-        # --- START FIX: Filter matches by team name ---
-        selected_match = None
-        target_team = structured.team_name
-
-        if target_team:
-            # Normalize to lower case for comparison
-            target_team_lower = target_team.lower()
-            
-            print(f"Pipeline searching for match involving: {target_team}")
-            
-            for m in matches:
-                # Safely get home and away names
-                home = m.get("teams", {}).get("home", {}).get("name", "").lower()
-                away = m.get("teams", {}).get("away", {}).get("name", "").lower()
-                
-                # Check if target team is in either home or away name
-                # (e.g. "man utd" in "manchester united fc")
-                if target_team_lower in home or target_team_lower in away:
-                    selected_match = m
-                    print(f"Match found: {home} vs {away}")
-                    break
+        # --- MODIFIED LOGIC: Filter matches based on query ---
+        all_filtered_matches = []
+        target_team = structured.team_name.lower() if structured.team_name else None
         
-        # Fallback: If no team specified, or team not found in list, pick the first one
-        if selected_match is None:
-            print("No specific team match found (or no team specified). Defaulting to first match.")
-            selected_match = matches[0]
+        # Filter all fetched matches by team if specified
+        for m in matches:
+            home_name = m.get("teams", {}).get("home", {}).get("name", "").lower()
+            away_name = m.get("teams", {}).get("away", {}).get("name", "").lower()
             
-        match = selected_match
-        # --- END FIX ---
+            if target_team is None or target_team in home_name or target_team in away_name:
+                all_filtered_matches.append(m)
+
+        if not all_filtered_matches:
+            return {
+                "status": "no_matches",
+                "request": structured.dict(),
+                "message": f"No matches found involving '{structured.team_name}' after filtering.",
+            }
+
+        # If only one match is desired for deep analysis, we can proceed with the rest of the pipeline
+        # For now, we return all filtered matches and let Streamlit handle selection.
+        # Future enhancement: Query Agent could indicate if a specific match was requested (e.g., "Liverpool vs Man Utd")
+        
+        # The key change: Return ALL filtered matches initially.
+        # The rest of the pipeline (prediction, verification, etc.) will ONLY run AFTER a match is explicitly selected.
+
+        return {
+            "status": "ok",
+            "query": user_query,
+            "structured_query": structured.dict(),
+            "filtered_matches": all_filtered_matches, # <-- Changed this to return all
+            "message": f"Found {len(all_filtered_matches)} matches. Select one for detailed analysis."
+        }
+
+    def run_deep_analysis(self, selected_match: dict):
+        """
+        Runs the prediction, verification, behavior, recommendation, and ethics
+        for a *single, pre-selected match*.
+        """
+        if not selected_match:
+            return {"status": "error", "message": "No match provided for deep analysis."}
 
         # Step 3: Prediction
-        prediction = self.prediction_agent.invoke(match)
+        prediction = self.prediction_agent.invoke(selected_match)
 
         # Step 4: Verification
         verification = self.verification_agent.invoke(prediction)
@@ -87,7 +99,7 @@ class BettingEdgePipeline:
 
         # Step 6: Recommendation
         recommendation = self.recommendation_agent.invoke({
-            "match": match,
+            "match": selected_match,
             "prediction": prediction,
             "verification": verification,
             "action": action
@@ -98,9 +110,7 @@ class BettingEdgePipeline:
 
         return {
             "status": "ok",
-            "query": user_query,
-            "structured_query": structured.dict(),
-            "match": match,
+            "match": selected_match,
             "prediction": prediction,
             "verification": verification,
             "action": action,

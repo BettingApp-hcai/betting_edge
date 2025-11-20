@@ -337,44 +337,107 @@ else:
         user_query = st.text_input(
             "Ask the Assistant:", placeholder="Type your request here..."
         )
+        
+        # Initialize session state for pipeline results if not present
+        if "pipeline_results" not in st.session_state:
+            st.session_state.pipeline_results = None
 
         if st.button("🚀 Run Flow") and user_query:
             pipeline = BettingEdgePipeline()
 
-            with st.spinner("Running multi agent flow"):
+            with st.spinner("Running initial query and data fetching..."):
+                # Run the first part of the pipeline (Query -> Data Fetch -> Filter)
                 result = pipeline.run(user_query)
+                st.session_state.pipeline_results = result
 
-            if result.get("status") != "ok":
+        # Display results if they exist in session state
+        if st.session_state.pipeline_results:
+            result = st.session_state.pipeline_results
+
+            if result.get("status") == "query_error" or result.get("status") == "no_matches":
                 st.error(result.get("message", "Flow failed"))
             else:
-                # Optionally store the chosen match into the DB so other tabs can use it
-                match = result["match"]
-                if st.session_state.data_agent is not None and match is not None:
-                    try:
-                        st.session_state.data_agent.store_match(match)
-                    except Exception as e:
-                        st.warning(f"Could not store match to database: {e}")
+                # 1. Show what the agent understood
+                with st.expander("Structured Query Analysis"):
+                    st.json(result["structured_query"])
 
-                st.subheader("Structured query")
-                st.json(result["structured_query"])
+                # 2. Get the filtered matches list
+                all_filtered_matches = result.get("filtered_matches", [])
 
-                st.subheader("Selected match")
-                st.json(result["match"])
+                if all_filtered_matches:
+                    st.subheader(f"Found {len(all_filtered_matches)} Matching Games:")
+                    
+                    # Create a nice DataFrame for display
+                    matches_display_df = pd.DataFrame([
+                        {
+                            "Date": m['fixture']['date'][:10], # Simple string slice for date
+                            "League": m['league']['name'],
+                            "Home Team": m['teams']['home']['name'],
+                            "Away Team": m['teams']['away']['name'],
+                            "Score": f"{m['goals']['home']}-{m['goals']['away']}" if m['fixture']['status']['long'] in ['FINISHED', 'Match Finished'] else "N/A"
+                        } for m in all_filtered_matches
+                    ])
+                    
+                    st.dataframe(matches_display_df, use_container_width=True, hide_index=True)
 
-                st.subheader("Prediction")
-                st.json(result["prediction"])
+                    # 3. Let user SELECT one match for deep analysis
+                    match_options = matches_display_df.apply(
+                        lambda x: f"{x['Home Team']} vs {x['Away Team']} ({x['Date']})",
+                        axis=1
+                    ).tolist()
+                    
+                    selected_match_idx = st.selectbox(
+                        "Select a match for detailed prediction and recommendation:",
+                        range(len(match_options)),
+                        format_func=lambda x: match_options[x],
+                        key="selected_pipeline_match"
+                    )
 
-                st.subheader("Verification")
-                st.json(result["verification"])
+                    # 4. Run Deep Analysis on the SELECTED match
+                    if st.button("🔮 Analyze Selected Match"):
+                        selected_match_data = all_filtered_matches[selected_match_idx]
+                        
+                        # Re-initialize pipeline to run the downstream agents
+                        pipeline = BettingEdgePipeline() 
+                        
+                        with st.spinner(f"Running deep analysis for {selected_match_data['teams']['home']['name']} vs {selected_match_data['teams']['away']['name']}..."):
+                            deep_analysis_result = pipeline.run_deep_analysis(selected_match_data)
+                        
+                        if deep_analysis_result.get("status") == "ok":
+                            # Store match in DB for persistence
+                            if st.session_state.data_agent:
+                                try:
+                                    st.session_state.data_agent.store_match(deep_analysis_result["match"])
+                                except Exception as e:
+                                    print(f"DB Store error: {e}")
 
-                st.subheader("Behavior action")
-                st.write(result["action"])
+                            st.success("Analysis Complete!")
+                            
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.subheader("Prediction Model")
+                                st.json(deep_analysis_result["prediction"])
+                                
+                                st.subheader("Verification Agent")
+                                st.json(deep_analysis_result["verification"])
 
-                st.subheader("Final recommendation")
-                st.write(result["recommendation"])
+                            with col2:
+                                st.subheader("Behavior Action")
+                                st.write(deep_analysis_result["action"])
+                                
+                                st.subheader("Ethics Check")
+                                st.json(deep_analysis_result["ethics"])
 
-                st.subheader("Ethics check")
-                st.json(result["ethics"])
+                            st.divider()
+                            st.subheader("📝 Final Recommendation")
+                            st.info(deep_analysis_result["recommendation"])
+
+                        else:
+                            st.error(deep_analysis_result.get("message", "Deep analysis failed."))
+                else:
+                    st.warning(f"Agent understood the query, but found no matches involving '{result['structured_query'].get('team_name')}'.")
+
 
     # Dashboard tab
     with tab2:
