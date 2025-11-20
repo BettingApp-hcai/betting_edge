@@ -1,3 +1,5 @@
+# pipelines/pipeline.py
+
 from agent_modules.data_agent_wrapper import DataAgentLC
 from agent_modules.prediction_agent_wrapper import PredictionAgentLC
 from agent_modules.verification_agent_wrapper import VerificationAgentLC
@@ -44,8 +46,35 @@ class BettingEdgePipeline:
                 "message": "No matching results from data agent",
             }
 
-        # use the first match in list
-        match = matches[0]
+        # --- START FIX: Filter matches by team name ---
+        selected_match = None
+        target_team = structured.team_name
+
+        if target_team:
+            # Normalize to lower case for comparison
+            target_team_lower = target_team.lower()
+            
+            print(f"Pipeline searching for match involving: {target_team}")
+            
+            for m in matches:
+                # Safely get home and away names
+                home = m.get("teams", {}).get("home", {}).get("name", "").lower()
+                away = m.get("teams", {}).get("away", {}).get("name", "").lower()
+                
+                # Check if target team is in either home or away name
+                # (e.g. "man utd" in "manchester united fc")
+                if target_team_lower in home or target_team_lower in away:
+                    selected_match = m
+                    print(f"Match found: {home} vs {away}")
+                    break
+        
+        # Fallback: If no team specified, or team not found in list, pick the first one
+        if selected_match is None:
+            print("No specific team match found (or no team specified). Defaulting to first match.")
+            selected_match = matches[0]
+            
+        match = selected_match
+        # --- END FIX ---
 
         # Step 3: Prediction
         prediction = self.prediction_agent.invoke(match)
