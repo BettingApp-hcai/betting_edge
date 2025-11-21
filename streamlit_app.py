@@ -14,6 +14,9 @@ from query_agent import parse_user_query
 # New unified multi agent flow
 from pipelines.pipeline import BettingEdgePipeline
 
+# NEW: Odds API agent
+from odds_agent import OddsAgent
+
 load_dotenv()
 
 # Page configuration
@@ -60,6 +63,9 @@ if "sport_type" not in st.session_state:
     st.session_state.sport_type = "football"
 if "db_initialized" not in st.session_state:
     st.session_state.db_initialized = False
+# NEW: cache OddsAgent
+if "odds_agent" not in st.session_state:
+    st.session_state.odds_agent = None
 
 
 def init_data_agent(sport_type: str = "football"):
@@ -154,7 +160,7 @@ def fetch_match_stats(match_id: int):
 
 
 def fetch_odds(match_id: int):
-    """Fetch odds for a specific match."""
+    """Fetch odds for a specific match (from local DB)."""
     conn = get_db_connection()
     query = """
         SELECT bookmaker, home_odds, draw_odds, away_odds
@@ -164,6 +170,84 @@ def fetch_odds(match_id: int):
     df = pd.read_sql_query(query, conn, params=(match_id,))
     conn.close()
     return df
+
+
+# NEW: helper to map our sport_type -> Odds API sport key
+def map_sport_to_odds_api(sport_type: str) -> str:
+    mapping = {
+        "football": "soccer_epl",              # default soccer league
+        "college_football": "americanfootball_ncaaf",
+        "basketball": "basketball_nba",
+    }
+    return mapping.get(sport_type, "soccer_epl")
+
+
+# NEW: helper to lazily init OddsAgent
+def get_odds_agent() -> Optional[OddsAgent]:
+    if st.session_state.odds_agent is None:
+        try:
+            st.session_state.odds_agent = OddsAgent()
+        except Exception as e:
+            st.error(f"Failed to initialize Odds API: {e}")
+            st.session_state.odds_agent = None
+    return st.session_state.odds_agent
+
+
+# NEW: transform Odds API JSON into a DataFrame
+def build_odds_dataframe(odds_data):
+    if not odds_data:
+        return pd.DataFrame()
+
+    rows = []
+    for event in odds_data:
+        try:
+            home = event.get("home_team", "")
+            away = event.get("away_team", "")
+            league = event.get("sport_title", event.get("sport_key", ""))
+            commence = event.get("commence_time", "")
+            try:
+                dt = datetime.fromisoformat(commence.replace("Z", "+00:00"))
+                date_str = dt.strftime("%Y-%m-%d %H:%M")
+            except Exception:
+                date_str = commence
+
+            bookmakers = event.get("bookmakers", [])
+            if not bookmakers:
+                continue
+
+            # Use first bookmaker with h2h market
+            home_odds = draw_odds = away_odds = None
+            bookmaker_name = bookmakers[0].get("title") or bookmakers[0].get("key")
+
+            for market in bookmakers[0].get("markets", []):
+                if market.get("key") == "h2h":
+                    for outcome in market.get("outcomes", []):
+                        name = outcome.get("name", "")
+                        price = outcome.get("price", None)
+                        if name == home:
+                            home_odds = price
+                        elif name == away:
+                            away_odds = price
+                        elif name.lower() == "draw":
+                            draw_odds = price
+                    break
+
+            rows.append(
+                {
+                    "Date/Time": date_str,
+                    "League": league,
+                    "Home Team": home,
+                    "Away Team": away,
+                    "Bookmaker": bookmaker_name,
+                    "Home Odds": home_odds,
+                    "Draw Odds": draw_odds,
+                    "Away Odds": away_odds,
+                }
+            )
+        except Exception:
+            continue
+
+    return pd.DataFrame(rows)
 
 
 # Main App Header
@@ -666,12 +750,50 @@ else:
                                 use_container_width=True,
                             )
 
-    # Odds tab
+    # Odds tab (UPDATED TO USE OddsAgent + mirror sport_type)
     with tab5:
         st.header("Betting Odds")
-        if st.session_state.sport_type != "football":
-            st.info(
-                "Odds are currently only available for Soccer via API-Football (not supported on Football-Data.org free tier)."
-            )
+
+        odds_agent = get_odds_agent()
+        if odds_agent is None:
+            st.info("Unable to initialize Odds API. Check ODDS_API_KEY in your .env file.")
         else:
-            st.info("Odds data integration for Football-Data.org is coming soon.")
+            current_sport_type = st.session_state.sport_type
+            sport_key = map_sport_to_odds_api(current_sport_type)
+
+            st.markdown(
+                f"Showing upcoming odds for **{current_sport_type.replace('_', ' ').title()}** "
+                f"(Odds API sport key: `{sport_key}`)"
+            )
+
+            regions = st.multiselect(
+                "Regions",
+                options=["us", "uk", "eu", "au"],
+                default=["us", "eu"],
+            )
+            markets = st.multiselect(
+                "Markets",
+                options=["h2h", "ou", "spreads"],
+                default=["h2h"],
+            )
+
+            if st.button("🔍 Fetch Latest Odds"):
+                with st.spinner("Fetching odds from The Odds API..."):
+                    odds_data = odds_agent.get_upcoming_odds(
+                        sport=sport_key,
+                        regions=",".join(regions) if regions else "us",
+                        markets=",".join(markets) if markets else "h2h",
+                    )
+
+                if not odds_data:
+                    st.warning("No odds data returned for this sport/region/market combination.")
+                else:
+                    odds_df = build_odds_dataframe(odds_data)
+                    if odds_df.empty:
+                        st.warning("Could not build a structured odds table from the API response.")
+                    else:
+                        st.subheader("Upcoming Odds (Sample)")
+                        st.dataframe(odds_df, use_container_width=True, hide_index=True)
+
+                    with st.expander("Raw Odds API Response"):
+                        st.json(odds_data)

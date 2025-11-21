@@ -1,5 +1,6 @@
 from langchain_core.runnables import Runnable
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import ChatOpenAI
+
 
 class BehaviorAgentLC(Runnable):
     """

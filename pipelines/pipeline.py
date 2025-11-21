@@ -1,4 +1,4 @@
-# pipelines/pipeline.py (UPDATED)
+# pipelines/pipeline.py (UPDATED WITH ODDS API SUPPORT)
 
 from agent_modules.data_agent_wrapper import DataAgentLC
 from agent_modules.prediction_agent_wrapper import PredictionAgentLC
@@ -7,6 +7,10 @@ from agent_modules.behavior_agent_wrapper import BehaviorAgentLC
 from agent_modules.recommendation_agent_wrapper import RecommendationAgentLC
 from agent_modules.ethics_agent_wrapper import EthicsAgentLC
 from agent_modules.query_agent_wrapper import QueryAgentLC
+
+# --- NEW IMPORT ---
+from odds_agent import OddsAgent
+
 
 class BettingEdgePipeline:
     """
@@ -23,6 +27,10 @@ class BettingEdgePipeline:
         self.recommendation_agent = RecommendationAgentLC()
         self.ethics_agent = EthicsAgentLC()
 
+        # --- NEW: ODDS AGENT INITIALIZATION ---
+        self.odds_agent = OddsAgent()
+
+
     def run(self, user_query: str):
         """
         Runs the full pipeline start to finish.
@@ -37,12 +45,17 @@ class BettingEdgePipeline:
                 "message": "Query agent could not parse that request"
             }
 
+        # --- NEW: FETCH ODDS BASED ON SPORT TYPE ---
+        sport_code = self._map_sport_to_odds_api(structured.sport_type)
+        odds_data = self.odds_agent.get_upcoming_odds(sport_code)
+
         # Step 2: Data agent fetch
         matches = self.data_agent.invoke(structured.dict())
         if not matches:
             return {
                 "status": "no_matches",
                 "request": structured.dict(),
+                "odds": odds_data,  # NEW: still show betting odds
                 "message": "No matching results from data agent",
             }
 
@@ -62,23 +75,20 @@ class BettingEdgePipeline:
             return {
                 "status": "no_matches",
                 "request": structured.dict(),
+                "odds": odds_data,  # NEW
                 "message": f"No matches found involving '{structured.team_name}' after filtering.",
             }
 
-        # If only one match is desired for deep analysis, we can proceed with the rest of the pipeline
-        # For now, we return all filtered matches and let Streamlit handle selection.
-        # Future enhancement: Query Agent could indicate if a specific match was requested (e.g., "Liverpool vs Man Utd")
-        
-        # The key change: Return ALL filtered matches initially.
-        # The rest of the pipeline (prediction, verification, etc.) will ONLY run AFTER a match is explicitly selected.
-
+        # Return ALL filtered matches and odds
         return {
             "status": "ok",
             "query": user_query,
             "structured_query": structured.dict(),
-            "filtered_matches": all_filtered_matches, # <-- Changed this to return all
+            "filtered_matches": all_filtered_matches,
+            "odds": odds_data,  # NEW
             "message": f"Found {len(all_filtered_matches)} matches. Select one for detailed analysis."
         }
+
 
     def run_deep_analysis(self, selected_match: dict):
         """
@@ -117,3 +127,16 @@ class BettingEdgePipeline:
             "recommendation": recommendation,
             "ethics": ethics
         }
+
+
+
+    # -----------------------------------------
+    # NEW: Map Query Agent sport_type to OddsAPI
+    # -----------------------------------------
+    def _map_sport_to_odds_api(self, sport_type: str):
+        mapping = {
+            "football": "soccer_epl",      # default for soccer
+            "basketball": "basketball_nba",
+            "college_football": "americanfootball_ncaaf",
+        }
+        return mapping.get(sport_type, "soccer_epl")

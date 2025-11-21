@@ -2,7 +2,7 @@
 """
 Holds utility functions that use LLMs to assist other agents.
 """
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
