@@ -1,38 +1,56 @@
-# Core Dependencies
+# ------------------------------
+# CORE APP DEPENDENCIES
+# ------------------------------
 streamlit==1.29.0
 pandas==2.1.4
+numpy==1.26.4
 requests==2.31.0
+python-dotenv==1.0.0
 
-# Data Processing
-numpy==1.26.2
-
-# Machine Learning (for future prediction models)
+# ------------------------------
+# MACHINE LEARNING
+# ------------------------------
 scikit-learn==1.3.2
 
-# LangChain & AI (for Week 2-3)
-langchain
-langchain-community
-langchain-openai  # <-- This is the new, required package
-openai
+# ------------------------------
+# LANGCHAIN (STABLE VERSIONS)
+# THESE MATCH YOUR CODE & Pydantic v1
+# ------------------------------
+langchain==0.0.300
+langchain-core==0.1.23
+langchain-community==0.0.19
+langchain-openai==0.0.2
 
-# Vector Database (for RAG)
-chromadb
+# ------------------------------
+# OPENAI (WORKS WITH langchain-openai 0.0.2)
+# ------------------------------
+openai==1.10.0
 
-# Additional Utilities
-python-dotenv==1.0.0
+# ------------------------------
+# VECTOR DATABASE (CHROMA)
+# Stable version for Python 3.10
+# ------------------------------
+chromadb==0.3.29
+
+# ------------------------------
+# VISUALIZATION
+# ------------------------------
+plotly==5.18.0
+matplotlib==3.8.2
+
+# ------------------------------
+# RATE LIMITING & RETRIES
+# ------------------------------
+ratelimit==2.2.1
+tenacity==8.2.3
+
+# ------------------------------
+# API SCHEDULING
+# ------------------------------
 APScheduler==3.10.4
 
-# Data Visualization
-plotly==5.18.0
-matplotlib==3.8.2
-
-# API Rate Limiting & Utilities
-ratelimit==2.2.1
-tenacity==8.2.3
-# Data Visualization
-plotly==5.18.0
-matplotlib==3.8.2
-
-# API Rate Limiting & Utilities
-ratelimit==2.2.1
-tenacity==8.2.3
+# ------------------------------
+# Pydantic v1 (REQUIRED)
+# DO NOT INSTALL v2 OR YOU WILL BREAK THE APP
+# ------------------------------
+pydantic==1.10.13

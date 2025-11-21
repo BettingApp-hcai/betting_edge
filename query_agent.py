@@ -6,6 +6,7 @@ from langchain.prompts import ChatPromptTemplate
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain.output_parsers import PydanticOutputParser
 
+
 # 1. Schema definition
 class SportsDataQuery(BaseModel):
     sport_type: Literal["football", "college_football", "basketball"] = Field(

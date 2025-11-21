@@ -1,0 +1,111 @@
+Metadata-Version: 2.4
+Name: clickhouse-connect
+Version: 0.10.0
+Summary: ClickHouse Database Core Driver for Python, Pandas, and Superset
+Home-page: https://github.com/ClickHouse/clickhouse-connect
+Author: ClickHouse Inc.
+Author-email: clients@clickhouse.com
+License: Apache License 2.0
+Keywords: clickhouse,superset,sqlalchemy,http,driver
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3.14
+Requires-Python: >=3.9,<3.15
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: certifi
+Requires-Dist: urllib3>=1.26
+Requires-Dist: pytz
+Requires-Dist: zstandard; python_version < "3.14"
+Requires-Dist: zstandard>=0.25.0; python_version >= "3.14"
+Requires-Dist: lz4; python_version < "3.14"
+Requires-Dist: lz4>=4.4.5; python_version >= "3.14"
+Provides-Extra: sqlalchemy
+Requires-Dist: sqlalchemy<3.0,>=1.4.40; extra == "sqlalchemy"
+Provides-Extra: numpy
+Requires-Dist: numpy; extra == "numpy"
+Provides-Extra: pandas
+Requires-Dist: pandas; extra == "pandas"
+Provides-Extra: polars
+Requires-Dist: polars>=1.0; extra == "polars"
+Provides-Extra: arrow
+Requires-Dist: pyarrow>=22.0; python_version >= "3.14" and extra == "arrow"
+Requires-Dist: pyarrow; python_version < "3.14" and extra == "arrow"
+Provides-Extra: orjson
+Requires-Dist: orjson; extra == "orjson"
+Provides-Extra: tzlocal
+Requires-Dist: tzlocal>=4.0; extra == "tzlocal"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+## ClickHouse Connect
+
+A high performance core database driver for connecting ClickHouse to Python, Pandas, and Superset
+
+* Pandas DataFrames (numpy and arrow-backed)
+* Numpy Arrays
+* PyArrow Tables
+* Polars DataFrames
+* Superset Connector
+* SQLAlchemy Core (select, joins, lightweight deletes; limited feature set)
+
+ClickHouse Connect currently uses the ClickHouse HTTP interface for maximum compatibility.
+
+### Installation
+
+```
+pip install clickhouse-connect
+```
+
+ClickHouse Connect requires Python 3.9 or higher. We officially test against Python 3.9 through 3.13.
+
+### Superset Connectivity
+
+ClickHouse Connect is fully integrated with Apache Superset. Previous versions of ClickHouse Connect utilized a
+dynamically loaded Superset Engine Spec, but as of Superset v2.1.0 the engine spec was incorporated into the main
+Apache Superset project and removed from clickhouse-connect in v0.6.0. If you have issues connecting to earlier
+versions of Superset, please use clickhouse-connect v0.5.25.
+
+When creating a Superset Data Source, either use the provided connection dialog, or a SqlAlchemy DSN in the form
+`clickhousedb://{username}:{password}@{host}:{port}`.
+
+### SQLAlchemy Implementation
+
+ClickHouse Connect includes a lightweight SQLAlchemy dialect implementation focused on compatibility with **Superset**
+and **SQLAlchemy Core**.
+
+Supported features include:
+- Basic query execution via SQLAlchemy Core
+- `SELECT` queries with `JOIN`s, `ARRAY JOIN`, and `FINAL` modifier
+- Lightweight `DELETE` statements
+
+The implementation does not include ORM support and is not intended as a full SQLAlchemy dialect. While it can support
+a range of Core-based applications beyond Superset, it may not be suitable for more complex SQLAlchemy applications
+that rely on full ORM or advanced dialect functionality.
+
+### Asyncio Support
+
+ClickHouse Connect provides an async wrapper, so that it is possible to use the client in an `asyncio` environment.
+See the [run_async example](./examples/run_async.py) for more details.
+
+### Complete Documentation
+
+The documentation for ClickHouse Connect has moved to
+[ClickHouse Docs](https://clickhouse.com/docs/integrations/python)
