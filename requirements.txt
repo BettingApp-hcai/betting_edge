@@ -14,7 +14,7 @@ scikit-learn==1.3.2
 
 # ------------------------------
 # LANGCHAIN (STABLE VERSIONS)
-# THESE MATCH YOUR CODE & Pydantic v1
+# Matching Pydantic v1 + OpenAI 0.28
 # ------------------------------
 langchain==0.0.300
 langchain-core==0.1.23
@@ -22,13 +22,13 @@ langchain-community==0.0.19
 langchain-openai==0.0.2
 
 # ------------------------------
-# OPENAI (WORKS WITH langchain-openai 0.0.2)
+# OPENAI (MUST USE THIS VERSION)
+# Supported by langchain-openai 0.0.2
 # ------------------------------
-openai==1.10.0
+openai==0.28.1
 
 # ------------------------------
 # VECTOR DATABASE (CHROMA)
-# Stable version for Python 3.10
 # ------------------------------
 chromadb==0.3.29
 
@@ -51,6 +51,5 @@ APScheduler==3.10.4
 
 # ------------------------------
 # Pydantic v1 (REQUIRED)
-# DO NOT INSTALL v2 OR YOU WILL BREAK THE APP
 # ------------------------------
 pydantic==1.10.13
